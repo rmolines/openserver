@@ -40,26 +40,7 @@ function matchesWhere(fields: Record<string, any>, where: Record<string, any>): 
   return true;
 }
 
-export async function query(dataDir: string, options?: QueryOptions): Promise<QueryResult[]> {
-  const results: QueryResult[] = [];
-
-  const glob = new Glob("*.md");
-  try {
-    for await (const file of glob.scan({ cwd: dataDir })) {
-      const filePath = path.join(dataDir, file);
-      try {
-        const raw = await Bun.file(filePath).text();
-        const parsed = matter(raw);
-        const slug = file.replace(/\.md$/, "");
-        results.push({ slug, fields: parsed.data, body: parsed.content });
-      } catch (err) {
-        process.stderr.write(`[query] failed to read ${filePath}: ${err}\n`);
-      }
-    }
-  } catch {
-    // dataDir may not exist
-  }
-
+function applyOptions(results: QueryResult[], options?: QueryOptions): QueryResult[] {
   let filtered = results;
 
   if (options?.where) {
@@ -81,6 +62,29 @@ export async function query(dataDir: string, options?: QueryOptions): Promise<Qu
   }
 
   return filtered;
+}
+
+export async function query(dataDir: string, options?: QueryOptions): Promise<QueryResult[]> {
+  const results: QueryResult[] = [];
+
+  const glob = new Glob("*.md");
+  try {
+    for await (const file of glob.scan({ cwd: dataDir })) {
+      const filePath = path.join(dataDir, file);
+      try {
+        const raw = await Bun.file(filePath).text();
+        const parsed = matter(raw);
+        const slug = file.replace(/\.md$/, "");
+        results.push({ slug, fields: parsed.data, body: parsed.content });
+      } catch (err) {
+        process.stderr.write(`[query] failed to read ${filePath}: ${err}\n`);
+      }
+    }
+  } catch {
+    // dataDir may not exist
+  }
+
+  return applyOptions(results, options);
 }
 
 export async function getDocument(dataDir: string, slug: string): Promise<QueryResult> {
@@ -114,34 +118,14 @@ export async function queryCollection(
 
     try {
       for await (const dir of parentGlob.scan({ cwd: "data" })) {
-        const fullDir = path.join("data", dir);
-        const partial = await query(fullDir, { sort: queryOptions.sort });
+        const partial = await query(path.join("data", dir));
         allResults.push(...partial);
       }
     } catch {
       // data dir may not exist
     }
 
-    let filtered = allResults;
-    if (queryOptions.where) {
-      const where = queryOptions.where;
-      filtered = allResults.filter((doc) => matchesWhere(doc.fields, where));
-    }
-
-    if (queryOptions.sort) {
-      const { field, order = "asc" } = queryOptions.sort;
-      filtered.sort((a, b) => {
-        const av = a.fields[field];
-        const bv = b.fields[field];
-        if (av === bv) return 0;
-        if (av === undefined) return 1;
-        if (bv === undefined) return -1;
-        const cmp = av < bv ? -1 : 1;
-        return order === "asc" ? cmp : -cmp;
-      });
-    }
-
-    return filtered;
+    return applyOptions(allResults, queryOptions);
   }
 
   const dataDir = resolveDataDir(schema, parentSlug);

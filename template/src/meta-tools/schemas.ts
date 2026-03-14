@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Glob } from "bun";
 import path from "path";
 import fs from "fs/promises";
-import { defineSchema, type SchemaDef, type FieldDef } from "../schema-engine.js";
+import { defineSchema, getSchema, type SchemaDef, type FieldDef } from "../schema-engine.js";
 import { registerCollectionTools } from "../auto-mcp.js";
 
 // Generate TypeScript source for a schema file using defineSchema()
@@ -87,7 +87,6 @@ export function register(server: McpServer) {
 
           // After import, the schema name is derived from the filename (convention)
           const name = file.replace(/\.ts$/, "");
-          const { getSchema } = await import("../schema-engine.js");
           const schema = getSchema(name);
           if (schema) {
             const dataDir = path.join(projectRoot, "data", `${name}s`);

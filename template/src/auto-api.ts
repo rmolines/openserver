@@ -55,7 +55,7 @@ export function registerCollectionRoutes(
 
     try {
       const doc = await getDocument(dataDir, slug);
-      return new Response(JSON.stringify({ slug: doc.slug, fields: doc.fields, body: doc.body }), {
+      return new Response(JSON.stringify(doc), {
         headers: { "Content-Type": "application/json" },
       });
     } catch {
