@@ -1,5 +1,11 @@
 # Changelog
 
+## OpenServer v0.2.0 — Document DB Layer — PR #1 — 2026-03-14
+**Type:** feat
+**PRD:** ~/.claude/initiatives/openserver/openserver-framework/prd.md
+**Commit:** `git show 8c00496`
+**Decisions:** see LEARNINGS.md
+
 ## OpenServer v0.1.0 — Initial release — 2026-03-14
 **Type:** feat
 **PRD:** ~/.claude/initiatives/fl/initiatives-standalone/prd.md

@@ -23,3 +23,38 @@ OpenServer is a companion server for Claude Code that lets the agent build local
 - Add MCP-protocol-level test (current smoke test only checks HTTP)
 - Make port configurable via env var
 - Publish to npm as create-openserver
+
+## v0.2.0 — Document DB Layer (Framework) — 2026-03-14
+
+### What was done
+OpenServer evolved from a flat CRUD toolkit into a document database framework. Apps can now declare typed schemas (including enums, arrays, refs, and hierarchical parent/child relationships) and get CRUD MCP tools plus read-only REST API endpoints generated automatically — no hand-written tool or route code. The launchpad's 7 schemas and 3-level hierarchy (mission/stage/module) can now be expressed declaratively using `defineSchema()` instead of ~800 lines of custom parser and route code.
+
+### Key decisions
+- Schema definitions use TypeScript (`defineSchema()`) — not JSON or YAML — for type safety and IDE support
+- Queries are full-scan + in-memory filter (no index files); acceptable for filesystem scale (<1000 docs per collection)
+- REST API is read-only (GET only); all mutations stay MCP-only — the agent writes, HTTP serves views
+- Hierarchical collections map `parent: "mission"` to directory nesting: `data/<parent-slug>/<collection>/`
+- Reference fields stored as slug strings in frontmatter; no foreign key enforcement
+- `create_schema` meta-tool updated to call `defineSchema()` internally — v0.1 flat schemas continue to work unchanged
+
+### Pitfalls discovered
+- Zod v4 `z.enum()` requires a non-empty tuple literal (`[string, ...string[]]`), not a plain `string[]` — requires a type assertion when building the enum dynamically from a runtime array
+- Route pattern matching for parameterized paths (`/api/<collection>/<slug>`) must be handled separately from exact-match routes; storing both `/api/tasks` and `/api/tasks/:slug` as Map keys and doing a regex fallback is the cleanest approach
+- `server.sendToolListChanged()` must be called after dynamically registering tools, or MCP clients won't see the new tools — this applies to `registerAllCollections` at startup too
+- When merging fields in `updateDocument`, the raw merged object (not the Zod-validated output) must be written back to preserve unknown frontmatter fields that the schema doesn't declare
+
+### Key files changed
+- `template/src/schema-engine.ts` (new) — `defineSchema()`, field type registry, Zod generation, schema registry
+- `template/src/query.ts` (new) — `query()` with where/sort filters, `getDocument()`, hierarchy-aware `queryCollection()`
+- `template/src/fs-db.ts` (rewritten) — CRUD using `ResolvedSchema`, `createInCollection()`, `updateInCollection()`
+- `template/src/auto-mcp.ts` (new) — `registerCollectionTools()`, `registerAllCollections()`
+- `template/src/auto-api.ts` (new) — `registerCollectionRoutes()`, `registerAllRoutes()`
+- `template/src/server.ts` (extended) — wires auto-API routes and auto-MCP tool registration at startup
+- `template/src/meta-tools/schemas.ts` (refactored) — delegates to schema-engine; removes duplicate Zod-building logic
+- `test/integration.ts` (new) — validates all 7 launchpad schemas, CRUD, query filters, hierarchy, backward compat
+
+### Next steps
+- Migrate launchpad: Phase 1 — express 7 schemas with `defineSchema()`; Phase 2 — replace `src/schemas.ts` + `src/parser.ts`; Phase 3 — replace hand-written API routes with auto-API; Phase 4 — replace hand-written MCP tools with auto-generated ones
+- Add hierarchy-aware REST routes (`GET /api/missions/fl/modules`) — currently only flat routes are generated
+- Add `?expand=<ref-field>` support to REST API for resolving reference fields on read
+- Make port configurable via env var (carried forward from v0.1)

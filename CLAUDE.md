@@ -59,3 +59,38 @@ stale or corrupted, the new project inherits the problem before `bun install` ca
 "skipped" but causes no error. If a new meta-tool file is added without exporting
 `register`, it will never be loaded and its tools will never appear — the only signal
 is the stderr skip message at startup.
+
+### Child schemas (with `parent`) get no auto-registered MCP tools or API routes
+`registerAllCollections` and `registerAllRoutes` call `resolveDataDir(schema)` with no
+`parentSlug`. For any schema that has a `parent` field, this throws, and the schema is
+silently skipped. The schema exists in `schemaRegistry` and `getAllSchemas()` returns
+it, but zero CRUD tools and zero REST routes are ever created for it. There is no
+fallback that registers parent-scoped tools (e.g. `create_<child>` scoped to a parent).
+To expose child collections you must call `registerCollectionTools` / `registerCollectionRoutes`
+manually with an explicit `parentSlug`.
+
+### `create_schema` tool cannot create child schemas — `parent` is not in its input shape
+The `SchemaDef` type has an optional `parent` field, but `schemas.ts`'s `create_schema`
+tool only declares `name` and `fields` in its Zod input. There is no way to pass a
+`parent` through the MCP interface. Even if a child schema were somehow registered
+at runtime, the startup IIFE and `create_schema` both hardcode
+`dataDir = data/<name>s/`, which is wrong for a child collection
+(correct path: `data/<parentSlug>/<name>s/`).
+
+### Startup IIFE matches schemas by filename, not by the name passed to `defineSchema`
+`schemas.ts`'s startup IIFE derives the schema name from the `.ts` filename
+(`file.replace(/\.ts$/, "")`) and then calls `getSchema(thatName)`. If the file is named
+`task.ts` but internally calls `defineSchema({ name: "todo", ... })`, `getSchema("task")`
+returns undefined, the IIFE logs "schema file imported but 'task' not found in registry —
+skipping", and no CRUD tools are registered for `todo` at startup — even though `todo` is
+correctly present in `schemaRegistry`. Convention: always name the file `<schemaName>.ts`
+where `<schemaName>` is the exact string passed to `defineSchema`.
+
+### `create_schema` silently overwrites an existing schema and registers duplicate MCP tools
+`defineSchema` calls `schemaRegistry.set(name, resolved)` unconditionally. Calling
+`create_schema` a second time with the same schema name replaces the registry entry and
+then calls `registerCollectionTools`, which calls `server.tool(createName, ...)` again.
+The `@modelcontextprotocol/sdk` MCP server does not guard against duplicate tool names;
+the second registration silently shadows the first and the tool list sent to clients may
+contain duplicates or behave unpredictably. Always check `getSchema(name)` before calling
+`create_schema`, and avoid calling `defineSchema` more than once for the same name.
