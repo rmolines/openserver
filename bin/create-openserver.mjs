@@ -12,7 +12,10 @@ if (fs.existsSync(targetDir)) {
   process.exit(1);
 }
 
-fs.cpSync(templateDir, targetDir, { recursive: true });
+fs.cpSync(templateDir, targetDir, {
+  recursive: true,
+  filter: (src) => !src.includes('node_modules') && !src.endsWith('bun.lock'),
+});
 
 const pkgPath = path.join(targetDir, 'package.json');
 const pkg = fs.readFileSync(pkgPath, 'utf8');
