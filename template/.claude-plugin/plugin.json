@@ -1,0 +1,6 @@
+{
+  "name": "openserver",
+  "version": "0.1.0",
+  "description": "Build local apps with Claude Code using OpenServer",
+  "commands_dir": "commands"
+}
