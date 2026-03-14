@@ -2,7 +2,9 @@ import matter from "gray-matter";
 import { z } from "zod";
 import { Glob } from "bun";
 import path from "path";
+import { mkdir } from "node:fs/promises";
 import type { ResolvedSchema } from "./schema-engine.js";
+import { getSchema, resolveDataDir } from "./schema-engine.js";
 
 // Accept either a ResolvedSchema or a raw ZodObject for backward compatibility
 type SchemaArg = ResolvedSchema | z.ZodObject<any>;
@@ -97,4 +99,44 @@ export async function updateDocument(
   const filePath = path.join(dataDir, `${slug}.md`);
   await Bun.write(filePath, content);
   process.stderr.write(`[fs-db] updated: ${filePath}\n`);
+}
+
+/**
+ * Creates a document in a named collection, resolving the dataDir automatically.
+ * Ensures the target directory exists before writing.
+ */
+export async function createInCollection(
+  schemaName: string,
+  slug: string,
+  fields: Record<string, any>,
+  body?: string,
+  parentSlug?: string
+): Promise<void> {
+  const schema = getSchema(schemaName);
+  if (!schema) {
+    throw new Error(`[fs-db] schema not found: "${schemaName}"`);
+  }
+
+  const dataDir = resolveDataDir(schema, parentSlug);
+  await mkdir(dataDir, { recursive: true });
+  await createDocument(dataDir, schema, slug, fields, body);
+}
+
+/**
+ * Updates a document in a named collection, resolving the dataDir automatically.
+ */
+export async function updateInCollection(
+  schemaName: string,
+  slug: string,
+  fields: Record<string, any>,
+  body?: string,
+  parentSlug?: string
+): Promise<void> {
+  const schema = getSchema(schemaName);
+  if (!schema) {
+    throw new Error(`[fs-db] schema not found: "${schemaName}"`);
+  }
+
+  const dataDir = resolveDataDir(schema, parentSlug);
+  await updateDocument(dataDir, schema, slug, fields, body);
 }
