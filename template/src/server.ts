@@ -3,6 +3,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { Glob } from "bun";
 import type { ServerWebSocket } from "bun";
 import { startWatcher } from "./watcher";
+import { registerAllCollections } from "./auto-mcp";
+import { registerAllRoutes } from "./auto-api";
 
 // MCP Server
 const server = new McpServer({
@@ -32,9 +34,15 @@ for await (const file of metaToolsGlob.scan({ cwd: projectRoot })) {
   }
 }
 
+// Register MCP tools for all defined schemas
+registerAllCollections(server);
+
 // Connect MCP via stdio
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+// Build API route map for all defined schemas
+const apiRoutes = registerAllRoutes();
 
 // HTTP + WebSocket server
 Bun.serve({
@@ -47,6 +55,22 @@ Bun.serve({
 
     const url = new URL(req.url);
     const pathname = url.pathname;
+
+    // Auto-API routes (exact match first)
+    const exactHandler = apiRoutes.get(pathname);
+    if (exactHandler) {
+      return exactHandler(req);
+    }
+
+    // Auto-API routes (parameterized: /api/<collection>/<slug>)
+    const apiSlugMatch = pathname.match(/^\/api\/(\w+)\/(.+)$/);
+    if (apiSlugMatch) {
+      const collectionPath = `/api/${apiSlugMatch[1]}/:slug`;
+      const slugHandler = apiRoutes.get(collectionPath);
+      if (slugHandler) {
+        return slugHandler(req);
+      }
+    }
 
     // Root: welcome page
     if (pathname === "/") {
