@@ -94,7 +94,7 @@ function registerCrudTools(
     },
     async ({ slug, fields, body }) => {
       await fs.mkdir(dataDir, { recursive: true });
-      await createDocument(dataDir, zodSchema, slug, fields, body ?? "");
+      await createDocument(dataDir, zodSchema, slug, fields, body);
       return {
         content: [{ type: "text" as const, text: `Created '${slug}' in ${name}` }],
       };

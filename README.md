@@ -21,9 +21,9 @@ can scaffold new tools, routes, and schemas on the fly without leaving the edito
 
 ## Meta-tools
 
-- **scaffold_tool** — generates a new MCP tool with handler, schema, and route wired up
-- **scaffold_route** — adds an HTTP route with a pre-built HTML view
-- **scaffold_schema** — creates a Zod schema and registers it with the DB layer
+- **create_tool** — generates a new MCP tool with handler and input schema
+- **create_view** — writes an HTML view served at `/<name>`
+- **create_schema** — creates a Zod schema and registers CRUD tools for it
 - **list_tools** — lists all registered tools and their current status
 
 ## Demo
