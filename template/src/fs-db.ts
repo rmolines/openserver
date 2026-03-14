@@ -2,6 +2,17 @@ import matter from "gray-matter";
 import { z } from "zod";
 import { Glob } from "bun";
 import path from "path";
+import type { ResolvedSchema } from "./schema-engine.js";
+
+// Accept either a ResolvedSchema or a raw ZodObject for backward compatibility
+type SchemaArg = ResolvedSchema | z.ZodObject<any>;
+
+function getZodSchema(schema: SchemaArg): z.ZodObject<any> {
+  if ("zodSchema" in schema) {
+    return schema.zodSchema;
+  }
+  return schema;
+}
 
 /**
  * Creates a new document in <dataDir>/<slug>.md with frontmatter + body.
@@ -9,15 +20,16 @@ import path from "path";
  */
 export async function createDocument(
   dataDir: string,
-  schema: z.ZodObject<any>,
+  schema: SchemaArg,
   slug: string,
   fields: Record<string, any>,
-  body: string
+  body?: string
 ): Promise<void> {
-  schema.parse(fields);
+  const zodSchema = getZodSchema(schema);
+  const validatedFields = zodSchema.parse(fields);
 
   const filePath = path.join(dataDir, `${slug}.md`);
-  const content = matter.stringify(body, fields);
+  const content = matter.stringify(body ?? "", validatedFields);
   await Bun.write(filePath, content);
   process.stderr.write(`[fs-db] created: ${filePath}\n`);
 }
@@ -70,17 +82,18 @@ export async function listDocuments(
  */
 export async function updateDocument(
   dataDir: string,
-  schema: z.ZodObject<any>,
+  schema: SchemaArg,
   slug: string,
   fields: Record<string, any>,
   body?: string
 ): Promise<void> {
+  const zodSchema = getZodSchema(schema);
   const existing = await readDocument(dataDir, slug);
   const merged = { ...existing.fields, ...fields };
-  schema.parse(merged);
+  const validatedFields = zodSchema.parse(merged);
 
   const newBody = body !== undefined ? body : existing.body;
-  const content = matter.stringify(newBody, merged);
+  const content = matter.stringify(newBody, validatedFields);
   const filePath = path.join(dataDir, `${slug}.md`);
   await Bun.write(filePath, content);
   process.stderr.write(`[fs-db] updated: ${filePath}\n`);
