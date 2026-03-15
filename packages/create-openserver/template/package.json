@@ -1,0 +1,16 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "zod": "latest",
+    "gray-matter": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

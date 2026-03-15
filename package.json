@@ -1,12 +1,53 @@
 {
-  "name": "create-openserver",
+  "name": "openserver",
   "version": "0.1.0",
   "type": "module",
-  "bin": {
-    "create-openserver": "./bin/create-openserver.mjs"
+  "workspaces": ["packages/*"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./schema-engine": {
+      "import": "./dist/schema-engine.js",
+      "types": "./dist/schema-engine.d.ts"
+    },
+    "./auto-mcp": {
+      "import": "./dist/auto-mcp.js",
+      "types": "./dist/auto-mcp.d.ts"
+    },
+    "./auto-api": {
+      "import": "./dist/auto-api.js",
+      "types": "./dist/auto-api.d.ts"
+    },
+    "./fs-db": {
+      "import": "./dist/fs-db.js",
+      "types": "./dist/fs-db.d.ts"
+    },
+    "./query": {
+      "import": "./dist/query.js",
+      "types": "./dist/query.d.ts"
+    },
+    "./watcher": {
+      "import": "./dist/watcher.js",
+      "types": "./dist/watcher.d.ts"
+    }
   },
-  "files": [
-    "bin/",
-    "template/"
-  ]
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist/", "src/"],
+  "scripts": {
+    "build": "bun run build:js && bun run build:types",
+    "build:js": "bun build src/index.ts src/schema-engine.ts src/auto-mcp.ts src/auto-api.ts src/fs-db.ts src/query.ts src/watcher.ts --outdir dist --target bun",
+    "build:types": "tsc --emitDeclarationOnly"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "zod": "latest",
+    "gray-matter": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest"
+  }
 }
