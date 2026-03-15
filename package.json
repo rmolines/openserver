@@ -31,6 +31,10 @@
     "./watcher": {
       "import": "./dist/watcher.js",
       "types": "./dist/watcher.d.ts"
+    },
+    "./create-server": {
+      "import": "./dist/create-server.js",
+      "types": "./dist/create-server.d.ts"
     }
   },
   "main": "./dist/index.js",
@@ -38,7 +42,7 @@
   "files": ["dist/", "src/"],
   "scripts": {
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/index.ts src/schema-engine.ts src/auto-mcp.ts src/auto-api.ts src/fs-db.ts src/query.ts src/watcher.ts --outdir dist --target bun",
+    "build:js": "bun build src/index.ts src/schema-engine.ts src/auto-mcp.ts src/auto-api.ts src/fs-db.ts src/query.ts src/watcher.ts src/create-server.ts --outdir dist --target bun",
     "build:types": "tsc --emitDeclarationOnly"
   },
   "dependencies": {

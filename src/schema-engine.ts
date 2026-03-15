@@ -26,6 +26,17 @@ export interface ResolvedSchema {
 // Global schema registry
 export const schemaRegistry: Map<string, ResolvedSchema> = new Map();
 
+// Configurable data directory prefix
+let dataDirPrefix = "data";
+
+export function setDataDirPrefix(prefix: string): void {
+  dataDirPrefix = prefix;
+}
+
+export function getDataDirPrefix(): string {
+  return dataDirPrefix;
+}
+
 export function getSchema(name: string): ResolvedSchema | undefined {
   return schemaRegistry.get(name);
 }
@@ -52,7 +63,7 @@ export function resolveDataDir(schema: ResolvedSchema, parentSlug?: string): str
   const collectionDir = `${schema.name}s`;
 
   if (!schema.parent) {
-    return `data/${collectionDir}/`;
+    return `${dataDirPrefix}/${collectionDir}/`;
   }
 
   if (!parentSlug) {
@@ -61,7 +72,7 @@ export function resolveDataDir(schema: ResolvedSchema, parentSlug?: string): str
     );
   }
 
-  return `data/${parentSlug}/${collectionDir}/`;
+  return `${dataDirPrefix}/${parentSlug}/${collectionDir}/`;
 }
 
 function applyOptionalAndDefault(base: z.ZodTypeAny, def: FieldDef): z.ZodTypeAny {
