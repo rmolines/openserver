@@ -17052,6 +17052,13 @@ function date4(params) {
 config(en_default());
 // src/schema-engine.ts
 var schemaRegistry = new Map;
+var dataDirPrefix = "data";
+function setDataDirPrefix(prefix) {
+  dataDirPrefix = prefix;
+}
+function getDataDirPrefix() {
+  return dataDirPrefix;
+}
 function getSchema(name) {
   return schemaRegistry.get(name);
 }
@@ -17066,12 +17073,12 @@ function getParentSchema(schema) {
 function resolveDataDir(schema, parentSlug) {
   const collectionDir = `${schema.name}s`;
   if (!schema.parent) {
-    return `data/${collectionDir}/`;
+    return `${dataDirPrefix}/${collectionDir}/`;
   }
   if (!parentSlug) {
     throw new Error(`[schema-engine] resolveDataDir: schema "${schema.name}" has parent "${schema.parent}" but no parentSlug was provided`);
   }
-  return `data/${parentSlug}/${collectionDir}/`;
+  return `${dataDirPrefix}/${parentSlug}/${collectionDir}/`;
 }
 function applyOptionalAndDefault(base, def) {
   if (!def.required)
