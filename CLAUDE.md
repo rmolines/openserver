@@ -134,6 +134,30 @@ has no local copies of those files. The two templates have already diverged — 
 (root) has zero effect on generated projects. All user-facing template changes must go in
 `packages/create-openserver/template/`.
 
+### `setDataDirPrefix` is global state — calling `createServer` twice silently overwrites it
+`createServer` calls `setDataDirPrefix(dataDir)` immediately at call time (not inside `start()`).
+`setDataDirPrefix` writes to a module-level variable in `schema-engine.ts`. If `createServer` is
+called twice — even to build two separate `ServerHandle` instances — the second call overwrites the
+prefix set by the first. All subsequent path resolution across both instances uses only the second
+`dataDir`. There is no error or warning. Always call `createServer` exactly once per process.
+
+### `createServer` does not expose `mcpServer` — custom tools cannot be registered after construction
+`McpServer` is instantiated inside `start()` and is never returned or surfaced on `ServerHandle`.
+The only exported interface is `{ start(): Promise<void> }`. There is no lifecycle hook (e.g.
+`onMcpReady`, `configure`) to register additional tools before the transport connects. Any attempt
+to call `mcpServer.tool(...)` outside `createServer` will fail because the instance is inaccessible.
+Custom tool registration must happen inside `auto-mcp.ts` / `registerAllCollections`, not at the
+call site.
+
+### `viewsDir` is resolved relative to CWD — views silently 404 if the process is not started from the project root
+`createServer` uses `Bun.file(\`\${viewsDir}/\${viewName}.html\`)` where `viewsDir` defaults to
+`"src/views"`. `Bun.file` resolves relative paths against the process CWD. If the server is started
+from any directory other than the project root (e.g. `node dist/server.js` from a parent directory,
+or a test runner that sets a different CWD), the view files are never found and every view request
+returns a silent 404. The old template used `new URL("../views", import.meta.url).pathname` which is
+anchor to the source file regardless of CWD. Always start the server with CWD set to the project
+root, or pass an absolute path for `viewsDir`.
+
 ### `dist/` is committed to git but has no `.gitignore` — there is no `.gitignore` at all
 There is no `.gitignore` in the repo root. The `dist/` directory (seven bundled JS/d.ts files,
 ~628 KB each for the JS files, ~4 MB total) is fully tracked by git. `bun build --target bun`

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2-create-server — PR #5 — 2026-03-15
+**Type:** feat
+**Node:** 2-create-server
+**Commit:** `git show 374b6aa`
+**Summary:** Added createServer({ schemas, dataDir, port, name, version, viewsDir }) API. Template server.ts reduced from 142 to 14 lines. dataDir now configurable via setDataDirPrefix().
+**Decisions:** see LEARNINGS.md#2-create-server
+
 ## 1-package-npm — PR #4 — 2026-03-15
 **Type:** feat
 **Node:** 1-package-npm

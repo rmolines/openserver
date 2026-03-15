@@ -143,4 +143,30 @@ Closed the predicate: uma view HTML servida pelo OpenServer consegue listar e ex
 - `packages/create-openserver/package.json` (new — scaffolder package)
 - `packages/create-openserver/bin/create-openserver.mjs` (moved from `bin/`)
 - `packages/create-openserver/template/` (moved from root `template/`)
+
+## 2-create-server — 2026-03-15
+
+**What:** Closed the predicate: `createServer({ schemas, dataDir })` agora substitui o `server.ts` do template — qualquer consumidor da lib pode inicializar MCP+HTTP+WebSocket com schemas declarativos e dataDir configurável sem copiar código de orquestração.
+
+**Key decisions:**
+- `createServer` retorna um `ServerHandle` com `start()` assíncrono — separação clara entre configuração e inicialização
+- `dataDir` configurável via `setDataDirPrefix()` no `schema-engine.ts` — prefixo global mutável, sem refatorar assinaturas de função em cascata
+- Meta-tool auto-discovery excluído da lib — é responsabilidade do consumidor registrar meta-tools antes de chamar `start()`; a lib fornece apenas orquestração de schemas
+- Template `server.ts` migrado de 136 linhas de orquestração manual para ~10 linhas: import side-effect de schemas + `createServer(getAllSchemas())` + `server.start()`
+- Rota matching order preservada (4-segment nested → 3-segment nested list → 2-segment slug → 1-segment collection) — mesmo comportamento do template original
+
+**Pitfalls:**
+- Nenhum novo além dos já documentados; D1–D3 completados sem regressões
+
+**Next steps:**
+- 3-custom-tools: API para registrar ferramentas customizadas via `createServer` (irmão pendente no fractal)
+- 4-fractal-consumidor: provar consumo end-to-end por outro projeto usando o package publicado
+- Publicar `openserver` no npm registry com versão pinada no template
+- Remover cópias duplicadas dos módulos core em `template/src/` após estabilização da lib
+
+**Key files:**
+- `src/create-server.ts` (new — factory principal)
+- `src/schema-engine.ts` — `setDataDirPrefix`, `getDataDirPrefix` adicionados
+- `src/index.ts` — exports de `createServer`, `CreateServerOptions`, `ServerHandle`
+- `packages/create-openserver/template/src/server.ts` — migrado para usar `createServer`
 - `test/import-test.ts` (new — integration test for external import)
