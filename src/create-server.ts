@@ -84,7 +84,6 @@ export function createServer(options: CreateServerOptions): ServerHandle {
       // Populate the shared mutable route map so runtime additions (e.g. via
       // create_schema) are immediately visible to the fetch handler below.
       sharedApiRoutes = registerAllRoutes();
-      const apiRoutes = sharedApiRoutes;
       const wsClients = new Set<ServerWebSocket<unknown>>();
       const broadcast = (msg: string) => {
         for (const ws of wsClients) ws.send(msg);
@@ -106,24 +105,24 @@ export function createServer(options: CreateServerOptions): ServerHandle {
             return httpMcpTransport.handleRequest(req);
           }
 
-          const exactHandler = apiRoutes.get(pathname);
+          const exactHandler = sharedApiRoutes.get(pathname);
           if (exactHandler) return exactHandler(req);
 
           const nestedSlugMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)\/(.+)$/);
           if (nestedSlugMatch) {
-            const handler = apiRoutes.get(`/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`);
+            const handler = sharedApiRoutes.get(`/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`);
             if (handler) return handler(req);
           }
 
           const nestedListMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)$/);
           if (nestedListMatch) {
-            const handler = apiRoutes.get(`/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`);
+            const handler = sharedApiRoutes.get(`/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`);
             if (handler) return handler(req);
           }
 
           const apiSlugMatch = pathname.match(/^\/api\/(\w+)\/(.+)$/);
           if (apiSlugMatch) {
-            const handler = apiRoutes.get(`/api/${apiSlugMatch[1]}/:slug`);
+            const handler = sharedApiRoutes.get(`/api/${apiSlugMatch[1]}/:slug`);
             if (handler) return handler(req);
           }
 

@@ -36,6 +36,13 @@ const note = defineSchema({
 
 let client: Client;
 
+function extractText(content: unknown): string {
+  return (content as Array<{ type: string; text?: string }>)
+    .filter((c) => c.type === "text")
+    .map((c) => c.text ?? "")
+    .join("");
+}
+
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 beforeAll(async () => {
@@ -89,10 +96,7 @@ describe("MCP over HTTP streamable transport", () => {
     expect(result.isError).toBeFalsy();
     expect(Array.isArray(result.content)).toBe(true);
 
-    const text = (result.content as Array<{ type: string; text?: string }>)
-      .filter((c) => c.type === "text")
-      .map((c) => c.text ?? "")
-      .join("");
+    const text = extractText(result.content);
 
     // Response is "Created '<slug>' in note"
     expect(text).toContain("note-http-transport");
@@ -107,10 +111,7 @@ describe("MCP over HTTP streamable transport", () => {
     expect(result.isError).toBeFalsy();
     expect(Array.isArray(result.content)).toBe(true);
 
-    const text = (result.content as Array<{ type: string; text?: string }>)
-      .filter((c) => c.type === "text")
-      .map((c) => c.text ?? "")
-      .join("");
+    const text = extractText(result.content);
 
     // The listed document should contain our note's title
     expect(text.toLowerCase()).toContain("hello from http transport");
