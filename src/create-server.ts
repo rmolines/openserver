@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { ServerWebSocket } from "bun";
 import type { ZodType } from "zod";
 import type { ResolvedSchema } from "./schema-engine.js";
@@ -32,6 +33,7 @@ export interface CreateServerOptions {
   version?: string;       // default: "1.0.0"
   viewsDir?: string;      // default: "src/views"
   tools?: CustomToolDef[];
+  transport?: "stdio" | "http";  // default: "stdio"
 }
 
 export interface ServerHandle {
@@ -47,6 +49,7 @@ export function createServer(options: CreateServerOptions): ServerHandle {
     version = "1.0.0",
     viewsDir = "src/views",
     tools = [],
+    transport: transportMode = "stdio",
   } = options;
 
   setDataDirPrefix(dataDir);
@@ -65,13 +68,22 @@ export function createServer(options: CreateServerOptions): ServerHandle {
         process.stderr.write(`[createServer] registered custom tool: ${tool.name}\n`);
       }
 
-      const transport = new StdioServerTransport();
-      await mcpServer.connect(transport);
+      // Set up MCP transport based on mode
+      let httpMcpTransport: WebStandardStreamableHTTPServerTransport | null = null;
+
+      if (transportMode === "http") {
+        httpMcpTransport = new WebStandardStreamableHTTPServerTransport({
+          sessionIdGenerator: () => crypto.randomUUID(),
+        });
+        await mcpServer.connect(httpMcpTransport);
+      } else {
+        const stdioTransport = new StdioServerTransport();
+        await mcpServer.connect(stdioTransport);
+      }
 
       // Populate the shared mutable route map so runtime additions (e.g. via
       // create_schema) are immediately visible to the fetch handler below.
       sharedApiRoutes = registerAllRoutes();
-      const apiRoutes = sharedApiRoutes;
       const wsClients = new Set<ServerWebSocket<unknown>>();
       const broadcast = (msg: string) => {
         for (const ws of wsClients) ws.send(msg);
@@ -88,35 +100,41 @@ export function createServer(options: CreateServerOptions): ServerHandle {
           const url = new URL(req.url);
           const pathname = url.pathname;
 
-          const exactHandler = apiRoutes.get(pathname);
+          // MCP HTTP transport route — must be matched before any other route
+          if (pathname === "/mcp" && httpMcpTransport !== null) {
+            return httpMcpTransport.handleRequest(req);
+          }
+
+          const exactHandler = sharedApiRoutes.get(pathname);
           if (exactHandler) return exactHandler(req);
 
           const nestedSlugMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)\/(.+)$/);
           if (nestedSlugMatch) {
-            const handler = apiRoutes.get(`/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`);
+            const handler = sharedApiRoutes.get(`/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`);
             if (handler) return handler(req);
           }
 
           const nestedListMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)$/);
           if (nestedListMatch) {
-            const handler = apiRoutes.get(`/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`);
+            const handler = sharedApiRoutes.get(`/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`);
             if (handler) return handler(req);
           }
 
           const apiSlugMatch = pathname.match(/^\/api\/(\w+)\/(.+)$/);
           if (apiSlugMatch) {
-            const handler = apiRoutes.get(`/api/${apiSlugMatch[1]}/:slug`);
+            const handler = sharedApiRoutes.get(`/api/${apiSlugMatch[1]}/:slug`);
             if (handler) return handler(req);
           }
 
           if (pathname === "/") {
+            const mcpLabel = transportMode === "http" ? "MCP (HTTP)" : "MCP (stdio)";
             return new Response(
               `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>OpenServer</title></head>
 <body>
   <h1>OpenServer is running</h1>
-  <p>MCP (stdio) and HTTP (port ${port}) are active.</p>
+  <p>${mcpLabel} and HTTP (port ${port}) are active.</p>
 </body>
 </html>`,
               { headers: { "Content-Type": "text/html" } }
@@ -155,7 +173,8 @@ export function createServer(options: CreateServerOptions): ServerHandle {
         },
       });
 
-      process.stderr.write(`[openserver] running — MCP (stdio) + HTTP (port ${port})\n`);
+      const mcpLabel = transportMode === "http" ? "MCP (HTTP /mcp)" : "MCP (stdio)";
+      process.stderr.write(`[openserver] running — ${mcpLabel} + HTTP (port ${port})\n`);
       startWatcher([dataDir, viewsDir], broadcast);
     },
   };

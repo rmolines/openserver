@@ -17133,10 +17133,86 @@ function defineSchema(def) {
   return resolved;
 }
 
-// src/query.ts
+// src/fs-db.ts
 var import_gray_matter = __toESM(require_gray_matter(), 1);
 var {Glob } = globalThis.Bun;
 import path from "path";
+import { mkdir } from "fs/promises";
+function getZodSchema(schema) {
+  if ("zodSchema" in schema) {
+    return schema.zodSchema;
+  }
+  return schema;
+}
+async function createDocument(dataDir, schema, slug, fields, body) {
+  const zodSchema = getZodSchema(schema);
+  const validatedFields = zodSchema.parse(fields);
+  const filePath = path.join(dataDir, `${slug}.md`);
+  const content = import_gray_matter.default.stringify(body ?? "", validatedFields);
+  await Bun.write(filePath, content);
+  process.stderr.write(`[fs-db] created: ${filePath}
+`);
+}
+async function readDocument(dataDir, slug) {
+  const filePath = path.join(dataDir, `${slug}.md`);
+  const file2 = Bun.file(filePath);
+  const raw = await file2.text();
+  const parsed = import_gray_matter.default(raw);
+  return { fields: parsed.data, body: parsed.content };
+}
+async function listDocuments(dataDir) {
+  const results = [];
+  const glob = new Glob("*.md");
+  try {
+    for await (const file2 of glob.scan({ cwd: dataDir })) {
+      const filePath = path.join(dataDir, file2);
+      try {
+        const raw = await Bun.file(filePath).text();
+        const parsed = import_gray_matter.default(raw);
+        const slug = file2.replace(/\.md$/, "");
+        results.push({ slug, fields: parsed.data });
+      } catch (err) {
+        process.stderr.write(`[fs-db] failed to read ${filePath}: ${err}
+`);
+      }
+    }
+  } catch {}
+  return results;
+}
+async function updateDocument(dataDir, schema, slug, fields, body) {
+  const zodSchema = getZodSchema(schema);
+  const existing = await readDocument(dataDir, slug);
+  const merged = { ...existing.fields, ...fields };
+  const validatedFields = zodSchema.parse(merged);
+  const newBody = body !== undefined ? body : existing.body;
+  const content = import_gray_matter.default.stringify(newBody, validatedFields);
+  const filePath = path.join(dataDir, `${slug}.md`);
+  await Bun.write(filePath, content);
+  process.stderr.write(`[fs-db] updated: ${filePath}
+`);
+}
+async function createInCollection(schemaName, slug, fields, body, parentSlug) {
+  const schema = getSchema(schemaName);
+  if (!schema) {
+    throw new Error(`[fs-db] schema not found: "${schemaName}"`);
+  }
+  const dataDir = resolveDataDir(schema, parentSlug);
+  await mkdir(dataDir, { recursive: true });
+  await createDocument(dataDir, schema, slug, fields, body);
+}
+async function updateInCollection(schemaName, slug, fields, body, parentSlug) {
+  const schema = getSchema(schemaName);
+  if (!schema) {
+    throw new Error(`[fs-db] schema not found: "${schemaName}"`);
+  }
+  const dataDir = resolveDataDir(schema, parentSlug);
+  await updateDocument(dataDir, schema, slug, fields, body);
+}
+
+// src/query.ts
+var import_gray_matter2 = __toESM(require_gray_matter(), 1);
+var {Glob: Glob2 } = globalThis.Bun;
+import path2 from "path";
 function matchesWhere(fields, where) {
   for (const [key, condition] of Object.entries(where)) {
     const value = fields[key];
@@ -17182,13 +17258,13 @@ function applyOptions(results, options2) {
 }
 async function query(dataDir, options2) {
   const results = [];
-  const glob = new Glob("*.md");
+  const glob = new Glob2("*.md");
   try {
     for await (const file2 of glob.scan({ cwd: dataDir })) {
-      const filePath = path.join(dataDir, file2);
+      const filePath = path2.join(dataDir, file2);
       try {
         const raw = await Bun.file(filePath).text();
-        const parsed = import_gray_matter.default(raw);
+        const parsed = import_gray_matter2.default(raw);
         const slug = file2.replace(/\.md$/, "");
         results.push({ slug, fields: parsed.data, body: parsed.content });
       } catch (err) {
@@ -17200,9 +17276,9 @@ async function query(dataDir, options2) {
   return applyOptions(results, options2);
 }
 async function getDocument(dataDir, slug) {
-  const filePath = path.join(dataDir, `${slug}.md`);
+  const filePath = path2.join(dataDir, `${slug}.md`);
   const raw = await Bun.file(filePath).text();
-  const parsed = import_gray_matter.default(raw);
+  const parsed = import_gray_matter2.default(raw);
   return { slug, fields: parsed.data, body: parsed.content };
 }
 async function queryCollection(schemaName, options2) {
@@ -17213,11 +17289,11 @@ async function queryCollection(schemaName, options2) {
   const { parentSlug, ...queryOptions } = options2 ?? {};
   if (schema.parent && !parentSlug) {
     const collectionDir = `${schema.name}s`;
-    const parentGlob = new Glob(`*/${collectionDir}/`);
+    const parentGlob = new Glob2(`*/${collectionDir}/`);
     const allResults = [];
     try {
       for await (const dir of parentGlob.scan({ cwd: "data" })) {
-        const partial2 = await query(path.join("data", dir));
+        const partial2 = await query(path2.join("data", dir));
         allResults.push(...partial2);
       }
     } catch {}
@@ -17236,6 +17312,7 @@ async function getFromCollection(schemaName, slug, parentSlug) {
 }
 
 // src/auto-api.ts
+import fs from "fs/promises";
 function buildQueryOptions(params) {
   const where = {};
   const sortField = params.get("_sort");
@@ -17256,6 +17333,31 @@ function registerCollectionRoutes(schema, dataDir) {
   const name = schema.name;
   const routes = new Map;
   routes.set(`/api/${name}s`, async (req) => {
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        if (!body.slug) {
+          return new Response(JSON.stringify({ error: "slug is required" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        await fs.mkdir(dataDir, { recursive: true });
+        await createDocument(dataDir, schema, body.slug, body.fields ?? {}, body.body);
+        const doc2 = await getDocument(dataDir, body.slug);
+        return new Response(JSON.stringify(doc2), {
+          status: 201,
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        process.stderr.write(`[auto-api] POST /api/${name}s error: ${err}
+`);
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
     const url2 = new URL(req.url);
     const options2 = buildQueryOptions(url2.searchParams);
     try {
@@ -17276,6 +17378,23 @@ function registerCollectionRoutes(schema, dataDir) {
     const url2 = new URL(req.url);
     const prefix = `/api/${name}s/`;
     const slug = url2.pathname.slice(prefix.length);
+    if (req.method === "PUT") {
+      try {
+        const body = await req.json();
+        await updateDocument(dataDir, schema, slug, body.fields ?? {}, body.body);
+        const doc2 = await getDocument(dataDir, slug);
+        return new Response(JSON.stringify(doc2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        process.stderr.write(`[auto-api] PUT /api/${name}s/${slug} error: ${err}
+`);
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
     try {
       const doc2 = await getDocument(dataDir, slug);
       return new Response(JSON.stringify(doc2), {
@@ -17337,19 +17456,35 @@ function registerAllRoutes() {
   const combined = new Map;
   const schemas3 = getAllSchemas();
   for (const schema of schemas3.filter((s) => !s.parent)) {
-    for (const [path2, handler] of registerCollectionRoutes(schema, resolveDataDir(schema))) {
-      combined.set(path2, handler);
+    for (const [path3, handler] of registerCollectionRoutes(schema, resolveDataDir(schema))) {
+      combined.set(path3, handler);
     }
   }
   for (const schema of schemas3.filter((s) => s.parent)) {
-    for (const [path2, handler] of registerChildCollectionRoutes(schema)) {
-      combined.set(path2, handler);
+    for (const [path3, handler] of registerChildCollectionRoutes(schema)) {
+      combined.set(path3, handler);
     }
   }
   return combined;
 }
+function addSchemaRoutes(routeMap, schema) {
+  if (schema.parent) {
+    for (const [path3, handler] of registerChildCollectionRoutes(schema)) {
+      routeMap.set(path3, handler);
+    }
+    process.stderr.write(`[auto-api] added child routes for schema: ${schema.name} (parent: ${schema.parent})
+`);
+  } else {
+    for (const [path3, handler] of registerCollectionRoutes(schema, resolveDataDir(schema))) {
+      routeMap.set(path3, handler);
+    }
+    process.stderr.write(`[auto-api] added routes for schema: ${schema.name}
+`);
+  }
+}
 export {
   registerCollectionRoutes,
   registerChildCollectionRoutes,
-  registerAllRoutes
+  registerAllRoutes,
+  addSchemaRoutes
 };
