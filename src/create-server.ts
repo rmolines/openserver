@@ -114,9 +114,18 @@ export function createServer(options: CreateServerOptions): ServerHandle {
           const viewName = pathname.slice(1);
           const viewPath = `${viewsDir}/${viewName}.html`;
           const file = Bun.file(viewPath);
-          return file.exists().then((exists) => {
+          return file.exists().then(async (exists) => {
             if (exists) {
-              return new Response(file, { headers: { "Content-Type": "text/html" } });
+              const html = await file.text();
+              const wsScript = `<script>
+  const ws = new WebSocket('ws://localhost:${port}');
+  ws.onmessage = () => location.reload();
+  ws.onclose = () => setTimeout(() => location.reload(), 1000);
+</script>`;
+              const injected = html.includes("</body>")
+                ? html.replace("</body>", `${wsScript}\n</body>`)
+                : html + "\n" + wsScript;
+              return new Response(injected, { headers: { "Content-Type": "text/html" } });
             }
             return new Response("Not Found", { status: 404 });
           });
