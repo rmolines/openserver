@@ -124,6 +124,15 @@ interface CustomToolDef {
 }
 ```
 
+## When to use what
+
+| Choice | Use when | Example |
+|---|---|---|
+| Transport: `stdio` | The MCP client spawns the server as a child process. Zero config, auto-connects. | Claude Code local project via `mcpServers` config |
+| Transport: `http` | The server runs as a standalone daemon; clients connect remotely. Needed for multi-client or remote access. | Deployed service, multiple agents hitting one backend |
+| CLI scaffold (`npx create-openserver`) | Starting a new standalone project. Gets file structure, dev server, and meta-tools ready immediately. | `npx create-openserver my-app` |
+| Programmatic (`bun add openserver`) | Embedding openserver into an existing project. Define schemas and call `createServer` in your own code. | Adding MCP + REST to an existing Bun app |
+
 ## Meta-tools
 
 - **create_tool** — generates a new MCP tool with handler and input schema
