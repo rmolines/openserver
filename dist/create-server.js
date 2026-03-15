@@ -9978,12 +9978,12 @@ var require_dist = __commonJS((exports, module) => {
       throw new Error(`Unknown format "${name}"`);
     return f;
   };
-  function addFormats(ajv, list, fs2, exportName) {
+  function addFormats(ajv, list, fs3, exportName) {
     var _a2;
     var _b;
     (_a2 = (_b = ajv.opts.code).formats) !== null && _a2 !== undefined || (_b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`);
     for (const f of list)
-      ajv.addFormat(f, fs2[f]);
+      ajv.addFormat(f, fs3[f]);
   }
   module.exports = exports = formatsPlugin;
   Object.defineProperty(exports, "__esModule", { value: true });
@@ -23918,6 +23918,7 @@ function registerAllCollections(server) {
 }
 
 // src/auto-api.ts
+import fs2 from "fs/promises";
 function buildQueryOptions(params) {
   const where = {};
   const sortField = params.get("_sort");
@@ -23938,6 +23939,31 @@ function registerCollectionRoutes(schema, dataDir) {
   const name = schema.name;
   const routes = new Map;
   routes.set(`/api/${name}s`, async (req) => {
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        if (!body.slug) {
+          return new Response(JSON.stringify({ error: "slug is required" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        await fs2.mkdir(dataDir, { recursive: true });
+        await createDocument(dataDir, schema, body.slug, body.fields ?? {}, body.body);
+        const doc2 = await getDocument(dataDir, body.slug);
+        return new Response(JSON.stringify(doc2), {
+          status: 201,
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        process.stderr.write(`[auto-api] POST /api/${name}s error: ${err}
+`);
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
     const url2 = new URL(req.url);
     const options2 = buildQueryOptions(url2.searchParams);
     try {
@@ -23958,6 +23984,23 @@ function registerCollectionRoutes(schema, dataDir) {
     const url2 = new URL(req.url);
     const prefix = `/api/${name}s/`;
     const slug = url2.pathname.slice(prefix.length);
+    if (req.method === "PUT") {
+      try {
+        const body = await req.json();
+        await updateDocument(dataDir, schema, slug, body.fields ?? {}, body.body);
+        const doc2 = await getDocument(dataDir, slug);
+        return new Response(JSON.stringify(doc2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        process.stderr.write(`[auto-api] PUT /api/${name}s/${slug} error: ${err}
+`);
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
     try {
       const doc2 = await getDocument(dataDir, slug);
       return new Response(JSON.stringify(doc2), {
@@ -24029,6 +24072,21 @@ function registerAllRoutes() {
     }
   }
   return combined;
+}
+function addSchemaRoutes(routeMap, schema) {
+  if (schema.parent) {
+    for (const [path3, handler] of registerChildCollectionRoutes(schema)) {
+      routeMap.set(path3, handler);
+    }
+    process.stderr.write(`[auto-api] added child routes for schema: ${schema.name} (parent: ${schema.parent})
+`);
+  } else {
+    for (const [path3, handler] of registerCollectionRoutes(schema, resolveDataDir(schema))) {
+      routeMap.set(path3, handler);
+    }
+    process.stderr.write(`[auto-api] added routes for schema: ${schema.name}
+`);
+  }
 }
 
 // src/watcher.ts
@@ -28056,6 +28114,7 @@ function getLiteralValue(schema) {
 
 // node_modules/.bun/@modelcontextprotocol+sdk@1.27.1/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
+var DEFAULT_NEGOTIATED_PROTOCOL_VERSION = "2025-03-26";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 var JSONRPC_VERSION = "2.0";
@@ -28228,6 +28287,7 @@ var InitializeRequestSchema = RequestSchema.extend({
   method: literal("initialize"),
   params: InitializeRequestParamsSchema
 });
+var isInitializeRequest = (value) => InitializeRequestSchema.safeParse(value).success;
 var ServerCapabilitiesSchema = object({
   experimental: record(string2(), AssertObjectSchema).optional(),
   logging: AssertObjectSchema.optional(),
@@ -32398,7 +32458,540 @@ class StdioServerTransport {
   }
 }
 
+// node_modules/.bun/@modelcontextprotocol+sdk@1.27.1/node_modules/@modelcontextprotocol/sdk/dist/esm/server/webStandardStreamableHttp.js
+class WebStandardStreamableHTTPServerTransport {
+  constructor(options2 = {}) {
+    this._started = false;
+    this._hasHandledRequest = false;
+    this._streamMapping = new Map;
+    this._requestToStreamMapping = new Map;
+    this._requestResponseMap = new Map;
+    this._initialized = false;
+    this._enableJsonResponse = false;
+    this._standaloneSseStreamId = "_GET_stream";
+    this.sessionIdGenerator = options2.sessionIdGenerator;
+    this._enableJsonResponse = options2.enableJsonResponse ?? false;
+    this._eventStore = options2.eventStore;
+    this._onsessioninitialized = options2.onsessioninitialized;
+    this._onsessionclosed = options2.onsessionclosed;
+    this._allowedHosts = options2.allowedHosts;
+    this._allowedOrigins = options2.allowedOrigins;
+    this._enableDnsRebindingProtection = options2.enableDnsRebindingProtection ?? false;
+    this._retryInterval = options2.retryInterval;
+  }
+  async start() {
+    if (this._started) {
+      throw new Error("Transport already started");
+    }
+    this._started = true;
+  }
+  createJsonErrorResponse(status, code, message, options2) {
+    const error48 = { code, message };
+    if (options2?.data !== undefined) {
+      error48.data = options2.data;
+    }
+    return new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      error: error48,
+      id: null
+    }), {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        ...options2?.headers
+      }
+    });
+  }
+  validateRequestHeaders(req) {
+    if (!this._enableDnsRebindingProtection) {
+      return;
+    }
+    if (this._allowedHosts && this._allowedHosts.length > 0) {
+      const hostHeader = req.headers.get("host");
+      if (!hostHeader || !this._allowedHosts.includes(hostHeader)) {
+        const error48 = `Invalid Host header: ${hostHeader}`;
+        this.onerror?.(new Error(error48));
+        return this.createJsonErrorResponse(403, -32000, error48);
+      }
+    }
+    if (this._allowedOrigins && this._allowedOrigins.length > 0) {
+      const originHeader = req.headers.get("origin");
+      if (originHeader && !this._allowedOrigins.includes(originHeader)) {
+        const error48 = `Invalid Origin header: ${originHeader}`;
+        this.onerror?.(new Error(error48));
+        return this.createJsonErrorResponse(403, -32000, error48);
+      }
+    }
+    return;
+  }
+  async handleRequest(req, options2) {
+    if (!this.sessionIdGenerator && this._hasHandledRequest) {
+      throw new Error("Stateless transport cannot be reused across requests. Create a new transport per request.");
+    }
+    this._hasHandledRequest = true;
+    const validationError = this.validateRequestHeaders(req);
+    if (validationError) {
+      return validationError;
+    }
+    switch (req.method) {
+      case "POST":
+        return this.handlePostRequest(req, options2);
+      case "GET":
+        return this.handleGetRequest(req);
+      case "DELETE":
+        return this.handleDeleteRequest(req);
+      default:
+        return this.handleUnsupportedRequest();
+    }
+  }
+  async writePrimingEvent(controller, encoder, streamId, protocolVersion) {
+    if (!this._eventStore) {
+      return;
+    }
+    if (protocolVersion < "2025-11-25") {
+      return;
+    }
+    const primingEventId = await this._eventStore.storeEvent(streamId, {});
+    let primingEvent = `id: ${primingEventId}
+data: 
+
+`;
+    if (this._retryInterval !== undefined) {
+      primingEvent = `id: ${primingEventId}
+retry: ${this._retryInterval}
+data: 
+
+`;
+    }
+    controller.enqueue(encoder.encode(primingEvent));
+  }
+  async handleGetRequest(req) {
+    const acceptHeader = req.headers.get("accept");
+    if (!acceptHeader?.includes("text/event-stream")) {
+      this.onerror?.(new Error("Not Acceptable: Client must accept text/event-stream"));
+      return this.createJsonErrorResponse(406, -32000, "Not Acceptable: Client must accept text/event-stream");
+    }
+    const sessionError = this.validateSession(req);
+    if (sessionError) {
+      return sessionError;
+    }
+    const protocolError = this.validateProtocolVersion(req);
+    if (protocolError) {
+      return protocolError;
+    }
+    if (this._eventStore) {
+      const lastEventId = req.headers.get("last-event-id");
+      if (lastEventId) {
+        return this.replayEvents(lastEventId);
+      }
+    }
+    if (this._streamMapping.get(this._standaloneSseStreamId) !== undefined) {
+      this.onerror?.(new Error("Conflict: Only one SSE stream is allowed per session"));
+      return this.createJsonErrorResponse(409, -32000, "Conflict: Only one SSE stream is allowed per session");
+    }
+    const encoder = new TextEncoder;
+    let streamController;
+    const readable = new ReadableStream({
+      start: (controller) => {
+        streamController = controller;
+      },
+      cancel: () => {
+        this._streamMapping.delete(this._standaloneSseStreamId);
+      }
+    });
+    const headers = {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive"
+    };
+    if (this.sessionId !== undefined) {
+      headers["mcp-session-id"] = this.sessionId;
+    }
+    this._streamMapping.set(this._standaloneSseStreamId, {
+      controller: streamController,
+      encoder,
+      cleanup: () => {
+        this._streamMapping.delete(this._standaloneSseStreamId);
+        try {
+          streamController.close();
+        } catch {}
+      }
+    });
+    return new Response(readable, { headers });
+  }
+  async replayEvents(lastEventId) {
+    if (!this._eventStore) {
+      this.onerror?.(new Error("Event store not configured"));
+      return this.createJsonErrorResponse(400, -32000, "Event store not configured");
+    }
+    try {
+      let streamId;
+      if (this._eventStore.getStreamIdForEventId) {
+        streamId = await this._eventStore.getStreamIdForEventId(lastEventId);
+        if (!streamId) {
+          this.onerror?.(new Error("Invalid event ID format"));
+          return this.createJsonErrorResponse(400, -32000, "Invalid event ID format");
+        }
+        if (this._streamMapping.get(streamId) !== undefined) {
+          this.onerror?.(new Error("Conflict: Stream already has an active connection"));
+          return this.createJsonErrorResponse(409, -32000, "Conflict: Stream already has an active connection");
+        }
+      }
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive"
+      };
+      if (this.sessionId !== undefined) {
+        headers["mcp-session-id"] = this.sessionId;
+      }
+      const encoder = new TextEncoder;
+      let streamController;
+      const readable = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+        },
+        cancel: () => {}
+      });
+      const replayedStreamId = await this._eventStore.replayEventsAfter(lastEventId, {
+        send: async (eventId, message) => {
+          const success2 = this.writeSSEEvent(streamController, encoder, message, eventId);
+          if (!success2) {
+            this.onerror?.(new Error("Failed replay events"));
+            try {
+              streamController.close();
+            } catch {}
+          }
+        }
+      });
+      this._streamMapping.set(replayedStreamId, {
+        controller: streamController,
+        encoder,
+        cleanup: () => {
+          this._streamMapping.delete(replayedStreamId);
+          try {
+            streamController.close();
+          } catch {}
+        }
+      });
+      return new Response(readable, { headers });
+    } catch (error48) {
+      this.onerror?.(error48);
+      return this.createJsonErrorResponse(500, -32000, "Error replaying events");
+    }
+  }
+  writeSSEEvent(controller, encoder, message, eventId) {
+    try {
+      let eventData = `event: message
+`;
+      if (eventId) {
+        eventData += `id: ${eventId}
+`;
+      }
+      eventData += `data: ${JSON.stringify(message)}
+
+`;
+      controller.enqueue(encoder.encode(eventData));
+      return true;
+    } catch (error48) {
+      this.onerror?.(error48);
+      return false;
+    }
+  }
+  handleUnsupportedRequest() {
+    this.onerror?.(new Error("Method not allowed."));
+    return new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: "Method not allowed."
+      },
+      id: null
+    }), {
+      status: 405,
+      headers: {
+        Allow: "GET, POST, DELETE",
+        "Content-Type": "application/json"
+      }
+    });
+  }
+  async handlePostRequest(req, options2) {
+    try {
+      const acceptHeader = req.headers.get("accept");
+      if (!acceptHeader?.includes("application/json") || !acceptHeader.includes("text/event-stream")) {
+        this.onerror?.(new Error("Not Acceptable: Client must accept both application/json and text/event-stream"));
+        return this.createJsonErrorResponse(406, -32000, "Not Acceptable: Client must accept both application/json and text/event-stream");
+      }
+      const ct = req.headers.get("content-type");
+      if (!ct || !ct.includes("application/json")) {
+        this.onerror?.(new Error("Unsupported Media Type: Content-Type must be application/json"));
+        return this.createJsonErrorResponse(415, -32000, "Unsupported Media Type: Content-Type must be application/json");
+      }
+      const requestInfo = {
+        headers: Object.fromEntries(req.headers.entries()),
+        url: new URL(req.url)
+      };
+      let rawMessage;
+      if (options2?.parsedBody !== undefined) {
+        rawMessage = options2.parsedBody;
+      } else {
+        try {
+          rawMessage = await req.json();
+        } catch {
+          this.onerror?.(new Error("Parse error: Invalid JSON"));
+          return this.createJsonErrorResponse(400, -32700, "Parse error: Invalid JSON");
+        }
+      }
+      let messages;
+      try {
+        if (Array.isArray(rawMessage)) {
+          messages = rawMessage.map((msg) => JSONRPCMessageSchema.parse(msg));
+        } else {
+          messages = [JSONRPCMessageSchema.parse(rawMessage)];
+        }
+      } catch {
+        this.onerror?.(new Error("Parse error: Invalid JSON-RPC message"));
+        return this.createJsonErrorResponse(400, -32700, "Parse error: Invalid JSON-RPC message");
+      }
+      const isInitializationRequest = messages.some(isInitializeRequest);
+      if (isInitializationRequest) {
+        if (this._initialized && this.sessionId !== undefined) {
+          this.onerror?.(new Error("Invalid Request: Server already initialized"));
+          return this.createJsonErrorResponse(400, -32600, "Invalid Request: Server already initialized");
+        }
+        if (messages.length > 1) {
+          this.onerror?.(new Error("Invalid Request: Only one initialization request is allowed"));
+          return this.createJsonErrorResponse(400, -32600, "Invalid Request: Only one initialization request is allowed");
+        }
+        this.sessionId = this.sessionIdGenerator?.();
+        this._initialized = true;
+        if (this.sessionId && this._onsessioninitialized) {
+          await Promise.resolve(this._onsessioninitialized(this.sessionId));
+        }
+      }
+      if (!isInitializationRequest) {
+        const sessionError = this.validateSession(req);
+        if (sessionError) {
+          return sessionError;
+        }
+        const protocolError = this.validateProtocolVersion(req);
+        if (protocolError) {
+          return protocolError;
+        }
+      }
+      const hasRequests = messages.some(isJSONRPCRequest);
+      if (!hasRequests) {
+        for (const message of messages) {
+          this.onmessage?.(message, { authInfo: options2?.authInfo, requestInfo });
+        }
+        return new Response(null, { status: 202 });
+      }
+      const streamId = crypto.randomUUID();
+      const initRequest = messages.find((m) => isInitializeRequest(m));
+      const clientProtocolVersion = initRequest ? initRequest.params.protocolVersion : req.headers.get("mcp-protocol-version") ?? DEFAULT_NEGOTIATED_PROTOCOL_VERSION;
+      if (this._enableJsonResponse) {
+        return new Promise((resolve) => {
+          this._streamMapping.set(streamId, {
+            resolveJson: resolve,
+            cleanup: () => {
+              this._streamMapping.delete(streamId);
+            }
+          });
+          for (const message of messages) {
+            if (isJSONRPCRequest(message)) {
+              this._requestToStreamMapping.set(message.id, streamId);
+            }
+          }
+          for (const message of messages) {
+            this.onmessage?.(message, { authInfo: options2?.authInfo, requestInfo });
+          }
+        });
+      }
+      const encoder = new TextEncoder;
+      let streamController;
+      const readable = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+        },
+        cancel: () => {
+          this._streamMapping.delete(streamId);
+        }
+      });
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive"
+      };
+      if (this.sessionId !== undefined) {
+        headers["mcp-session-id"] = this.sessionId;
+      }
+      for (const message of messages) {
+        if (isJSONRPCRequest(message)) {
+          this._streamMapping.set(streamId, {
+            controller: streamController,
+            encoder,
+            cleanup: () => {
+              this._streamMapping.delete(streamId);
+              try {
+                streamController.close();
+              } catch {}
+            }
+          });
+          this._requestToStreamMapping.set(message.id, streamId);
+        }
+      }
+      await this.writePrimingEvent(streamController, encoder, streamId, clientProtocolVersion);
+      for (const message of messages) {
+        let closeSSEStream;
+        let closeStandaloneSSEStream;
+        if (isJSONRPCRequest(message) && this._eventStore && clientProtocolVersion >= "2025-11-25") {
+          closeSSEStream = () => {
+            this.closeSSEStream(message.id);
+          };
+          closeStandaloneSSEStream = () => {
+            this.closeStandaloneSSEStream();
+          };
+        }
+        this.onmessage?.(message, { authInfo: options2?.authInfo, requestInfo, closeSSEStream, closeStandaloneSSEStream });
+      }
+      return new Response(readable, { status: 200, headers });
+    } catch (error48) {
+      this.onerror?.(error48);
+      return this.createJsonErrorResponse(400, -32700, "Parse error", { data: String(error48) });
+    }
+  }
+  async handleDeleteRequest(req) {
+    const sessionError = this.validateSession(req);
+    if (sessionError) {
+      return sessionError;
+    }
+    const protocolError = this.validateProtocolVersion(req);
+    if (protocolError) {
+      return protocolError;
+    }
+    await Promise.resolve(this._onsessionclosed?.(this.sessionId));
+    await this.close();
+    return new Response(null, { status: 200 });
+  }
+  validateSession(req) {
+    if (this.sessionIdGenerator === undefined) {
+      return;
+    }
+    if (!this._initialized) {
+      this.onerror?.(new Error("Bad Request: Server not initialized"));
+      return this.createJsonErrorResponse(400, -32000, "Bad Request: Server not initialized");
+    }
+    const sessionId = req.headers.get("mcp-session-id");
+    if (!sessionId) {
+      this.onerror?.(new Error("Bad Request: Mcp-Session-Id header is required"));
+      return this.createJsonErrorResponse(400, -32000, "Bad Request: Mcp-Session-Id header is required");
+    }
+    if (sessionId !== this.sessionId) {
+      this.onerror?.(new Error("Session not found"));
+      return this.createJsonErrorResponse(404, -32001, "Session not found");
+    }
+    return;
+  }
+  validateProtocolVersion(req) {
+    const protocolVersion = req.headers.get("mcp-protocol-version");
+    if (protocolVersion !== null && !SUPPORTED_PROTOCOL_VERSIONS.includes(protocolVersion)) {
+      this.onerror?.(new Error(`Bad Request: Unsupported protocol version: ${protocolVersion}` + ` (supported versions: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`));
+      return this.createJsonErrorResponse(400, -32000, `Bad Request: Unsupported protocol version: ${protocolVersion} (supported versions: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`);
+    }
+    return;
+  }
+  async close() {
+    this._streamMapping.forEach(({ cleanup }) => {
+      cleanup();
+    });
+    this._streamMapping.clear();
+    this._requestResponseMap.clear();
+    this.onclose?.();
+  }
+  closeSSEStream(requestId) {
+    const streamId = this._requestToStreamMapping.get(requestId);
+    if (!streamId)
+      return;
+    const stream = this._streamMapping.get(streamId);
+    if (stream) {
+      stream.cleanup();
+    }
+  }
+  closeStandaloneSSEStream() {
+    const stream = this._streamMapping.get(this._standaloneSseStreamId);
+    if (stream) {
+      stream.cleanup();
+    }
+  }
+  async send(message, options2) {
+    let requestId = options2?.relatedRequestId;
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      requestId = message.id;
+    }
+    if (requestId === undefined) {
+      if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+        throw new Error("Cannot send a response on a standalone SSE stream unless resuming a previous client request");
+      }
+      let eventId;
+      if (this._eventStore) {
+        eventId = await this._eventStore.storeEvent(this._standaloneSseStreamId, message);
+      }
+      const standaloneSse = this._streamMapping.get(this._standaloneSseStreamId);
+      if (standaloneSse === undefined) {
+        return;
+      }
+      if (standaloneSse.controller && standaloneSse.encoder) {
+        this.writeSSEEvent(standaloneSse.controller, standaloneSse.encoder, message, eventId);
+      }
+      return;
+    }
+    const streamId = this._requestToStreamMapping.get(requestId);
+    if (!streamId) {
+      throw new Error(`No connection established for request ID: ${String(requestId)}`);
+    }
+    const stream = this._streamMapping.get(streamId);
+    if (!this._enableJsonResponse && stream?.controller && stream?.encoder) {
+      let eventId;
+      if (this._eventStore) {
+        eventId = await this._eventStore.storeEvent(streamId, message);
+      }
+      this.writeSSEEvent(stream.controller, stream.encoder, message, eventId);
+    }
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      this._requestResponseMap.set(requestId, message);
+      const relatedIds = Array.from(this._requestToStreamMapping.entries()).filter(([_, sid]) => sid === streamId).map(([id]) => id);
+      const allResponsesReady = relatedIds.every((id) => this._requestResponseMap.has(id));
+      if (allResponsesReady) {
+        if (!stream) {
+          throw new Error(`No connection established for request ID: ${String(requestId)}`);
+        }
+        if (this._enableJsonResponse && stream.resolveJson) {
+          const headers = {
+            "Content-Type": "application/json"
+          };
+          if (this.sessionId !== undefined) {
+            headers["mcp-session-id"] = this.sessionId;
+          }
+          const responses = relatedIds.map((id) => this._requestResponseMap.get(id));
+          if (responses.length === 1) {
+            stream.resolveJson(new Response(JSON.stringify(responses[0]), { status: 200, headers }));
+          } else {
+            stream.resolveJson(new Response(JSON.stringify(responses), { status: 200, headers }));
+          }
+        } else {
+          stream.cleanup();
+        }
+        for (const id of relatedIds) {
+          this._requestResponseMap.delete(id);
+          this._requestToStreamMapping.delete(id);
+        }
+      }
+    }
+  }
+}
+
 // src/create-server.ts
+var sharedApiRoutes = null;
 function createServer(options2) {
   const {
     schemas: schemas4,
@@ -32407,7 +33000,8 @@ function createServer(options2) {
     name = "openserver",
     version: version2 = "1.0.0",
     viewsDir = "src/views",
-    tools = []
+    tools = [],
+    transport: transportMode = "stdio"
   } = options2;
   setDataDirPrefix(dataDir);
   for (const schema of schemas4) {
@@ -32423,9 +33017,18 @@ function createServer(options2) {
         process.stderr.write(`[createServer] registered custom tool: ${tool.name}
 `);
       }
-      const transport = new StdioServerTransport;
-      await mcpServer.connect(transport);
-      const apiRoutes = registerAllRoutes();
+      let httpMcpTransport = null;
+      if (transportMode === "http") {
+        httpMcpTransport = new WebStandardStreamableHTTPServerTransport({
+          sessionIdGenerator: () => crypto.randomUUID()
+        });
+        await mcpServer.connect(httpMcpTransport);
+      } else {
+        const stdioTransport = new StdioServerTransport;
+        await mcpServer.connect(stdioTransport);
+      }
+      sharedApiRoutes = registerAllRoutes();
+      const apiRoutes = sharedApiRoutes;
       const wsClients = new Set;
       const broadcast = (msg) => {
         for (const ws of wsClients)
@@ -32439,6 +33042,9 @@ function createServer(options2) {
           }
           const url2 = new URL(req.url);
           const pathname = url2.pathname;
+          if (pathname === "/mcp" && httpMcpTransport !== null) {
+            return httpMcpTransport.handleRequest(req);
+          }
           const exactHandler = apiRoutes.get(pathname);
           if (exactHandler)
             return exactHandler(req);
@@ -32461,12 +33067,13 @@ function createServer(options2) {
               return handler(req);
           }
           if (pathname === "/") {
+            const mcpLabel2 = transportMode === "http" ? "MCP (HTTP)" : "MCP (stdio)";
             return new Response(`<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>OpenServer</title></head>
 <body>
   <h1>OpenServer is running</h1>
-  <p>MCP (stdio) and HTTP (port ${port}) are active.</p>
+  <p>${mcpLabel2} and HTTP (port ${port}) are active.</p>
 </body>
 </html>`, { headers: { "Content-Type": "text/html" } });
           }
@@ -32499,12 +33106,14 @@ function createServer(options2) {
           message(_ws, _msg) {}
         }
       });
-      process.stderr.write(`[openserver] running \u2014 MCP (stdio) + HTTP (port ${port})
+      const mcpLabel = transportMode === "http" ? "MCP (HTTP /mcp)" : "MCP (stdio)";
+      process.stderr.write(`[openserver] running \u2014 ${mcpLabel} + HTTP (port ${port})
 `);
       startWatcher([dataDir, viewsDir], broadcast);
     }
   };
 }
 export {
+  sharedApiRoutes,
   createServer
 };
