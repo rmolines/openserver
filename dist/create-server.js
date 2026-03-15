@@ -32491,30 +32491,5 @@ function createServer(options2) {
   };
 }
 export {
-  updateInCollection,
-  updateDocument,
-  startWatcher,
-  setDataDirPrefix,
-  schemaRegistry,
-  resolveDataDir,
-  registerCollectionTools,
-  registerCollectionRoutes,
-  registerChildCollectionTools,
-  registerChildCollectionRoutes,
-  registerAllRoutes,
-  registerAllCollections,
-  readDocument,
-  queryCollection,
-  query,
-  listDocuments,
-  getSchema,
-  getParentSchema,
-  getFromCollection,
-  getDocument,
-  getDataDirPrefix,
-  getAllSchemas,
-  defineSchema,
-  createServer,
-  createInCollection,
-  createDocument
+  createServer
 };
