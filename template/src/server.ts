@@ -62,6 +62,26 @@ Bun.serve({
       return exactHandler(req);
     }
 
+    // Auto-API routes (nested slug: /api/<parentPlural>/<parent_slug>/<childPlural>/<slug>)
+    const nestedSlugMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)\/(.+)$/);
+    if (nestedSlugMatch) {
+      const nestedSlugPath = `/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`;
+      const nestedSlugHandler = apiRoutes.get(nestedSlugPath);
+      if (nestedSlugHandler) {
+        return nestedSlugHandler(req);
+      }
+    }
+
+    // Auto-API routes (nested list: /api/<parentPlural>/<parent_slug>/<childPlural>)
+    const nestedListMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)$/);
+    if (nestedListMatch) {
+      const nestedListPath = `/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`;
+      const nestedListHandler = apiRoutes.get(nestedListPath);
+      if (nestedListHandler) {
+        return nestedListHandler(req);
+      }
+    }
+
     // Auto-API routes (parameterized: /api/<collection>/<slug>)
     const apiSlugMatch = pathname.match(/^\/api\/(\w+)\/(.+)$/);
     if (apiSlugMatch) {
