@@ -122,3 +122,24 @@ The `@modelcontextprotocol/sdk` MCP server does not guard against duplicate tool
 the second registration silently shadows the first and the tool list sent to clients may
 contain duplicates or behave unpredictably. Always check `getSchema(name)` before calling
 `create_schema`, and avoid calling `defineSchema` more than once for the same name.
+
+### There are two divergent templates — `template/` (root) and `packages/create-openserver/template/` — only the latter ships to users
+The root `template/` is the legacy dev sandbox: it imports core modules via relative paths
+(`import from "./auto-mcp"`) and contains local copies of `auto-api.ts`, `auto-mcp.ts`,
+`fs-db.ts`, `query.ts`, `schema-engine.ts`, and `watcher.ts` inside its `src/`. The
+`packages/create-openserver/template/` is what `create-openserver` actually copies to new
+projects: it imports from the published package (`import from "openserver/auto-mcp"`) and
+has no local copies of those files. The two templates have already diverged — `schemas.ts`,
+`project.ts`, `task.ts`, and `server.ts` differ between them. Editing files in `template/`
+(root) has zero effect on generated projects. All user-facing template changes must go in
+`packages/create-openserver/template/`.
+
+### `dist/` is committed to git but has no `.gitignore` — there is no `.gitignore` at all
+There is no `.gitignore` in the repo root. The `dist/` directory (seven bundled JS/d.ts files,
+~628 KB each for the JS files, ~4 MB total) is fully tracked by git. `bun build --target bun`
+inlines all dependencies into each entry point, so every `bun run build:js` produces large binary
+blobs that are committed on every rebuild. If `dist/` is stale or missing, `import "openserver"`
+from the template (which resolves to `dist/index.js`) will fail at runtime with a module-not-found
+error. Always run `bun run build` (both `build:js` and `build:types`) before testing the template
+or publishing. Running only `bun run build:js` leaves `.d.ts` files stale; running only
+`bun run build:types` leaves the JS bundles stale.

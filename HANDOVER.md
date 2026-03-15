@@ -112,3 +112,35 @@ Closed the predicate: uma view HTML servida pelo OpenServer consegue listar e ex
 - `template/data/projects/` (new) — seed data for `project` collection
 - `template/data/projects/*/tasks/` (new) — seed data for child `task` collection
 - `template/views/dashboard.html` (new) — client-side view fetching hierarchical data from auto-generated REST API
+
+## 1-package-npm — 2026-03-15
+
+**PR:** #4 — feat: extract openserver as publishable npm lib package
+**Commit:** 965bdb3
+
+**What was done:** Closed the predicate: o package `openserver` é publicável como lib npm — outro projeto consegue instalar e importar seus módulos sem copiar código. The repo was restructured as a Bun monorepo: root `package.json` became the `openserver` lib, the scaffolder moved to `packages/create-openserver/`, core modules (schema-engine, auto-mcp, auto-api, fs-db, query, watcher) were extracted to `src/` at the root, a build pipeline (`bun build` + `tsc`) emits `dist/*.js` and `dist/*.d.ts`, and an integration test confirmed `import { defineSchema, schemaRegistry } from "openserver"` resolves types and runs correctly.
+
+**Key decisions:**
+- Root package becomes the lib (`openserver`) and scaffolder moves to `packages/create-openserver/` — cleanest split with Bun workspaces connecting the two
+- Build uses `bun build --target=bun` for JS and `tsc --emitDeclarationOnly` for types — avoids fighting tsc's module emit on Bun-specific APIs
+- Core modules are copied from `template/src/` to root `src/` (not moved) — template keeps its own copies so existing generated projects continue to work unchanged
+- Template `package.json` updated to list `openserver` as a dependency — future scaffolded projects depend on the published package instead of bundling source
+
+**Pitfalls discovered:**
+- None beyond those already documented; D1–D4 all completed without regressions
+
+**Next steps:**
+- Publish `openserver` to npm registry (next fractal node)
+- Update scaffolder to reference a pinned version once published (`"openserver": "^0.1.0"`) instead of `"latest"`
+- Remove duplicated core modules from `template/src/` once the published package is stable and generated projects can depend on it
+- Add `createServer()` convenience wrapper to the lib's public API (deferred from this cycle)
+
+**Key files changed:**
+- `package.json` (rewritten — now `openserver` lib with exports map and build scripts)
+- `tsconfig.json` (new — lib tsconfig for declaration emit)
+- `src/index.ts` (new — public API entry point re-exporting all core modules)
+- `src/schema-engine.ts`, `src/auto-mcp.ts`, `src/auto-api.ts`, `src/fs-db.ts`, `src/query.ts`, `src/watcher.ts` (new — core modules at lib root)
+- `packages/create-openserver/package.json` (new — scaffolder package)
+- `packages/create-openserver/bin/create-openserver.mjs` (moved from `bin/`)
+- `packages/create-openserver/template/` (moved from root `template/`)
+- `test/import-test.ts` (new — integration test for external import)

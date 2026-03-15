@@ -1,5 +1,11 @@
 # Changelog
 
+## 1-package-npm — PR #4 — 2026-03-15
+**Type:** feat
+**Node:** 1-package-npm
+**Commit:** `git show 965bdb3`
+**Decisions:** see LEARNINGS.md#1-package-npm
+
 ## views-collection-data — PR #3 — 2026-03-14
 **Type:** feat
 **Node:** views-collection-data
