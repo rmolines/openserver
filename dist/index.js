@@ -32473,9 +32473,18 @@ function createServer(options2) {
           const viewName = pathname.slice(1);
           const viewPath = `${viewsDir}/${viewName}.html`;
           const file2 = Bun.file(viewPath);
-          return file2.exists().then((exists) => {
+          return file2.exists().then(async (exists) => {
             if (exists) {
-              return new Response(file2, { headers: { "Content-Type": "text/html" } });
+              const html = await file2.text();
+              const wsScript = `<script>
+  const ws = new WebSocket('ws://localhost:${port}');
+  ws.onmessage = () => location.reload();
+  ws.onclose = () => setTimeout(() => location.reload(), 1000);
+</script>`;
+              const injected = html.includes("</body>") ? html.replace("</body>", `${wsScript}
+</body>`) : html + `
+` + wsScript;
+              return new Response(injected, { headers: { "Content-Type": "text/html" } });
             }
             return new Response("Not Found", { status: 404 });
           });
