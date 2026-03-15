@@ -14,6 +14,9 @@ import {
   getSchema,
 } from "../template/src/schema-engine";
 
+import { registerChildCollectionTools } from "../template/src/auto-mcp";
+import { registerChildCollectionRoutes } from "../template/src/auto-api";
+
 import {
   createDocument,
   readDocument,
@@ -359,6 +362,103 @@ async function part5_backwardCompatibility(tmpDir: string) {
   pass("v0.1 backward compatibility maintained");
 }
 
+// ─── Part 6 — Child schema auto-MCP registration ──────────────────────────────
+
+function part6_childSchemaAutoMcp(_tmpDir: string) {
+  schemaRegistry.clear();
+
+  defineSchema({
+    name: "project",
+    fields: {
+      id: { type: "string", required: true },
+      name: { type: "string" },
+    },
+  });
+
+  defineSchema({
+    name: "module",
+    parent: "project",
+    fields: {
+      id: { type: "string", required: true },
+      title: { type: "string" },
+    },
+  });
+
+  const moduleSchema = getSchema("module")!;
+
+  // Mock MCP server that records tool registrations
+  const registeredTools: string[] = [];
+  const mockServer = {
+    tool(name: string, _shape: unknown, _handler: unknown) {
+      registeredTools.push(name);
+    },
+    sendToolListChanged() {},
+  } as any;
+
+  const toolNames = registerChildCollectionTools(mockServer, moduleSchema);
+
+  assert(toolNames.length === 4, `expected 4 tool names, got ${toolNames.length}`);
+  assert(toolNames.includes("create_module"), "should include create_module");
+  assert(toolNames.includes("read_module"), "should include read_module");
+  assert(toolNames.includes("list_modules"), "should include list_modules");
+  assert(toolNames.includes("update_module"), "should include update_module");
+
+  assert(registeredTools.length === 4, `mock server should have recorded 4 tool registrations, got ${registeredTools.length}`);
+  assert(registeredTools.includes("create_module"), "mock server should record create_module");
+  assert(registeredTools.includes("read_module"), "mock server should record read_module");
+  assert(registeredTools.includes("list_modules"), "mock server should record list_modules");
+  assert(registeredTools.includes("update_module"), "mock server should record update_module");
+
+  pass("Child schema auto-MCP registration works");
+}
+
+// ─── Part 7 — Child schema auto-API routes ─────────────────────────────────────
+
+function part7_childSchemaAutoApi(_tmpDir: string) {
+  schemaRegistry.clear();
+
+  defineSchema({
+    name: "project",
+    fields: {
+      id: { type: "string", required: true },
+      name: { type: "string" },
+    },
+  });
+
+  defineSchema({
+    name: "module",
+    parent: "project",
+    fields: {
+      id: { type: "string", required: true },
+      title: { type: "string" },
+    },
+  });
+
+  const moduleSchema = getSchema("module")!;
+
+  const routes = registerChildCollectionRoutes(moduleSchema);
+
+  assert(routes instanceof Map, "registerChildCollectionRoutes should return a Map");
+  assert(routes.size >= 2, `expected at least 2 routes, got ${routes.size}`);
+
+  const routeKeys = Array.from(routes.keys());
+
+  // All route keys should contain both parent plural ("projects") and child plural ("modules")
+  for (const key of routeKeys) {
+    assert(key.includes("projects"), `route key "${key}" should contain "projects"`);
+    assert(key.includes("modules"), `route key "${key}" should contain "modules"`);
+  }
+
+  // Verify specific expected routes exist
+  const listRoute = routeKeys.find(k => k.endsWith("modules"));
+  assert(listRoute !== undefined, "should have a list route ending with 'modules'");
+
+  const singleRoute = routeKeys.find(k => k.endsWith("/:slug"));
+  assert(singleRoute !== undefined, "should have a single-item route ending with '/:slug'");
+
+  pass("Child schema auto-API routes work");
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -383,6 +483,12 @@ async function main() {
 
     // Part 5 clears registry and uses simple flat schema
     await part5_backwardCompatibility(tmpDir);
+
+    // Part 6 clears registry and tests child schema auto-MCP tool registration
+    part6_childSchemaAutoMcp(tmpDir);
+
+    // Part 7 clears registry and tests child schema auto-API route registration
+    part7_childSchemaAutoApi(tmpDir);
 
     console.log("\n=== ALL INTEGRATION TESTS PASSED ===");
   } catch (err) {
