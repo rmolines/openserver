@@ -36,7 +36,14 @@ for await (const file of metaToolsGlob.scan({ cwd: projectRoot })) {
 }
 
 // Register MCP tools for all defined schemas
-registerAllCollections(server);
+// Wrapped in try/catch: if schemas.ts startup IIFE already ran (timing-dependent),
+// some tools may already be registered and registerAllCollections will throw.
+// In that case, the tools are already registered so we can proceed.
+try {
+  registerAllCollections(server);
+} catch (err) {
+  process.stderr.write(`[openserver] registerAllCollections skipped (already registered): ${err}\n`);
+}
 
 // Connect MCP via stdio
 const transport = new StdioServerTransport();

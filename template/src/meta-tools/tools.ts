@@ -4,6 +4,28 @@ import { Glob } from "bun";
 import path from "path";
 import fs from "fs/promises";
 
+/** Convert a JSON type string to a Zod source code expression. */
+function typeToZod(type: unknown): string {
+  if (type === "string") return "z.string()";
+  if (type === "number") return "z.number()";
+  if (type === "boolean") return "z.boolean()";
+  return "z.string()";
+}
+
+/** Build the Zod shape source string from an inputSchema record. */
+function buildZodShape(inputSchema: Record<string, unknown> | undefined): string {
+  const entries = Object.entries(inputSchema ?? {});
+  if (entries.length === 0) return "{}";
+  const lines = entries.map(([k, v]) => {
+    const fieldType =
+      typeof v === "object" && v !== null && "type" in v
+        ? (v as { type: unknown }).type
+        : v;
+    return `  ${k}: ${typeToZod(fieldType)}`;
+  });
+  return `{\n${lines.join(",\n")},\n}`;
+}
+
 export function register(server: McpServer) {
   // create_tool — writes a new tool file and registers it dynamically
   server.tool(
@@ -19,13 +41,14 @@ export function register(server: McpServer) {
       const toolsDir = path.join(projectRoot, "src/tools");
       const filePath = path.join(toolsDir, `${name}.ts`);
 
-      const schemaJson = JSON.stringify(inputSchema ?? {}, null, 2);
-      const fileContent = `export const description = ${JSON.stringify(description)};
-export const inputSchema = ${schemaJson};
-export default async function(args: any) {
-  ${handler}
-}
-`;
+      const zodShape = buildZodShape(inputSchema);
+      const fileContent =
+        `import { z } from "zod";\n` +
+        `export const description = ${JSON.stringify(description)};\n` +
+        `export const inputSchema = ${zodShape};\n` +
+        `export default async function(args: any) {\n` +
+        `  ${handler}\n` +
+        `}\n`;
 
       await fs.mkdir(toolsDir, { recursive: true });
       await fs.writeFile(filePath, fileContent, "utf-8");
