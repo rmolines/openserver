@@ -2,9 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Glob } from "bun";
 import type { ServerWebSocket } from "bun";
-import { startWatcher } from "./watcher";
-import { registerAllCollections } from "./auto-mcp";
-import { registerAllRoutes } from "./auto-api";
+import { startWatcher } from "openserver/watcher";
+import { registerAllCollections } from "openserver/auto-mcp";
+import { registerAllRoutes } from "openserver/auto-api";
 
 // MCP Server
 const server = new McpServer({

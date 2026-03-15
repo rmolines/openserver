@@ -1,4 +1,4 @@
-import { defineSchema } from "../schema-engine.js";
+import { defineSchema } from "openserver/schema-engine";
 defineSchema({
   name: "project",
   fields: {

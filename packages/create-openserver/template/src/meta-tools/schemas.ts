@@ -3,12 +3,12 @@ import { z } from "zod";
 import { Glob } from "bun";
 import path from "path";
 import fs from "fs/promises";
-import { defineSchema, getSchema, type SchemaDef, type FieldDef } from "../schema-engine.js";
-import { registerCollectionTools, registerChildCollectionTools } from "../auto-mcp.js";
+import { defineSchema, getSchema, type SchemaDef, type FieldDef } from "openserver/schema-engine";
+import { registerCollectionTools, registerChildCollectionTools } from "openserver/auto-mcp";
 
 function generateSchemaSource(name: string, fields: Record<string, FieldDef>, parent?: string): string {
   const def: SchemaDef = { name, ...(parent ? { parent } : {}), fields };
-  return `// Auto-generated schema for '${name}'\nimport { defineSchema } from "../schema-engine.js";\n\ndefineSchema(${JSON.stringify(def, null, 2)});\n`;
+  return `// Auto-generated schema for '${name}'\nimport { defineSchema } from "openserver/schema-engine";\n\ndefineSchema(${JSON.stringify(def, null, 2)});\n`;
 }
 
 export function register(server: McpServer) {
