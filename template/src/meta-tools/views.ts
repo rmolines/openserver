@@ -24,7 +24,7 @@ export function register(server: McpServer) {
       html: z.string(),
     },
     async ({ name, html }) => {
-      const projectRoot = new URL("../../..", import.meta.url).pathname;
+      const projectRoot = new URL("../..", import.meta.url).pathname;
       const viewsDir = path.join(projectRoot, "src/views");
       const filePath = path.join(viewsDir, `${name}.html`);
 

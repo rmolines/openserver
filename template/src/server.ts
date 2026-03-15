@@ -16,7 +16,7 @@ const server = new McpServer({
 const wsClients = new Set<ServerWebSocket<unknown>>();
 
 // Auto-discover and register meta-tools
-const projectRoot = new URL("../..", import.meta.url).pathname;
+const projectRoot = new URL("..", import.meta.url).pathname;
 const metaToolsGlob = new Glob("src/meta-tools/*.ts");
 
 for await (const file of metaToolsGlob.scan({ cwd: projectRoot })) {
