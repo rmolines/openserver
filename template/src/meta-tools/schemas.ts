@@ -6,16 +6,9 @@ import fs from "fs/promises";
 import { defineSchema, getSchema, type SchemaDef, type FieldDef } from "../schema-engine.js";
 import { registerCollectionTools, registerChildCollectionTools } from "../auto-mcp.js";
 
-// Generate TypeScript source for a schema file using defineSchema()
 function generateSchemaSource(name: string, fields: Record<string, FieldDef>, parent?: string): string {
-  const lines: string[] = [
-    `// Auto-generated schema for '${name}'`,
-    `import { defineSchema } from "../schema-engine.js";`,
-    ``,
-    `defineSchema(${JSON.stringify({ name, ...(parent ? { parent } : {}), fields } satisfies SchemaDef, null, 2)});`,
-    ``,
-  ];
-  return lines.join("\n");
+  const def: SchemaDef = { name, ...(parent ? { parent } : {}), fields };
+  return `// Auto-generated schema for '${name}'\nimport { defineSchema } from "../schema-engine.js";\n\ndefineSchema(${JSON.stringify(def, null, 2)});\n`;
 }
 
 export function register(server: McpServer) {
@@ -41,18 +34,11 @@ export function register(server: McpServer) {
     },
     async ({ name, parent, fields }) => {
       const schemasDir = path.join(projectRoot, "src/schemas");
+      const schema = defineSchema({ name, fields: fields as Record<string, FieldDef>, ...(parent ? { parent } : {}) });
 
-      // Build SchemaDef with proper FieldDef types
-      const schemaDef: SchemaDef = { name, fields: fields as Record<string, FieldDef>, ...(parent ? { parent } : {}) };
-
-      // Register schema in the engine
-      const schema = defineSchema(schemaDef);
-
-      // Write schema file for persistence
       await fs.mkdir(schemasDir, { recursive: true });
       const schemaFilePath = path.join(schemasDir, `${name}.ts`);
-      const source = generateSchemaSource(name, fields as Record<string, FieldDef>, parent);
-      await fs.writeFile(schemaFilePath, source, "utf-8");
+      await fs.writeFile(schemaFilePath, generateSchemaSource(name, fields as Record<string, FieldDef>, parent), "utf-8");
       process.stderr.write(`[openserver] wrote schema file: ${schemaFilePath}\n`);
 
       let toolNames: string[];

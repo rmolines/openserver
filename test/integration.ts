@@ -4,9 +4,8 @@
  */
 
 import path from "path";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { mkdir } from "node:fs/promises";
 
 import {
   defineSchema,
@@ -282,7 +281,6 @@ async function part4_hierarchy(tmpDir: string) {
     },
   });
 
-  const projectSchema = getSchema("project")!;
   const moduleSchema = getSchema("module")!;
 
   // Create project dirs
@@ -364,7 +362,7 @@ async function part5_backwardCompatibility(tmpDir: string) {
 
 // ─── Part 6 — Child schema auto-MCP registration ──────────────────────────────
 
-function part6_childSchemaAutoMcp(_tmpDir: string) {
+function part6_childSchemaAutoMcp() {
   schemaRegistry.clear();
 
   defineSchema({
@@ -414,7 +412,7 @@ function part6_childSchemaAutoMcp(_tmpDir: string) {
 
 // ─── Part 7 — Child schema auto-API routes ─────────────────────────────────────
 
-function part7_childSchemaAutoApi(_tmpDir: string) {
+function part7_childSchemaAutoApi() {
   schemaRegistry.clear();
 
   defineSchema({
@@ -485,10 +483,10 @@ async function main() {
     await part5_backwardCompatibility(tmpDir);
 
     // Part 6 clears registry and tests child schema auto-MCP tool registration
-    part6_childSchemaAutoMcp(tmpDir);
+    part6_childSchemaAutoMcp();
 
     // Part 7 clears registry and tests child schema auto-API route registration
-    part7_childSchemaAutoApi(tmpDir);
+    part7_childSchemaAutoApi();
 
     console.log("\n=== ALL INTEGRATION TESTS PASSED ===");
   } catch (err) {

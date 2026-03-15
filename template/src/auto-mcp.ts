@@ -174,18 +174,17 @@ export function registerChildCollectionTools(
 }
 
 export function registerAllCollections(server: McpServer): void {
-  const schemas = getAllSchemas();
+  const roots: ResolvedSchema[] = [];
+  const children: ResolvedSchema[] = [];
 
-  // First pass: register root schemas (no parent)
-  for (const schema of schemas) {
-    if (schema.parent) continue;
-    const dataDir = resolveDataDir(schema);
-    registerCollectionTools(server, schema, dataDir);
+  for (const schema of getAllSchemas()) {
+    (schema.parent ? children : roots).push(schema);
   }
 
-  // Second pass: register child schemas (has parent)
-  for (const schema of schemas) {
-    if (!schema.parent) continue;
+  for (const schema of roots) {
+    registerCollectionTools(server, schema, resolveDataDir(schema));
+  }
+  for (const schema of children) {
     registerChildCollectionTools(server, schema);
   }
 }

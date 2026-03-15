@@ -1,6 +1,22 @@
 import { type ResolvedSchema, getAllSchemas, resolveDataDir } from "./schema-engine.js";
 import { query, getDocument, type QueryOptions } from "./query.js";
 
+function buildQueryOptions(params: URLSearchParams): QueryOptions {
+  const where: Record<string, any> = {};
+  const sortField = params.get("_sort");
+  const sortOrder = params.get("_order") as "asc" | "desc" | null;
+
+  for (const [key, value] of params.entries()) {
+    if (key === "_sort" || key === "_order") continue;
+    where[key] = value;
+  }
+
+  const options: QueryOptions = {};
+  if (Object.keys(where).length > 0) options.where = where;
+  if (sortField) options.sort = { field: sortField, order: sortOrder ?? "asc" };
+  return options;
+}
+
 export function registerCollectionRoutes(
   schema: ResolvedSchema,
   dataDir: string
@@ -11,26 +27,7 @@ export function registerCollectionRoutes(
   // GET /api/<collection> — list with optional filters
   routes.set(`/api/${name}s`, async (req: Request) => {
     const url = new URL(req.url);
-    const params = url.searchParams;
-
-    const where: Record<string, any> = {};
-    let sort: QueryOptions["sort"] | undefined;
-
-    const sortField = params.get("_sort");
-    const sortOrder = params.get("_order") as "asc" | "desc" | null;
-
-    for (const [key, value] of params.entries()) {
-      if (key === "_sort" || key === "_order") continue;
-      where[key] = value;
-    }
-
-    if (sortField) {
-      sort = { field: sortField, order: sortOrder ?? "asc" };
-    }
-
-    const options: QueryOptions = {};
-    if (Object.keys(where).length > 0) options.where = where;
-    if (sort) options.sort = sort;
+    const options = buildQueryOptions(url.searchParams);
 
     try {
       const results = await query(dataDir, options);
@@ -79,30 +76,9 @@ export function registerChildCollectionRoutes(
   // GET /api/<parentPlural>/:parent_slug/<childPlural> — list children under a parent
   routes.set(`/api/${parentPlural}/:parent_slug/${childPlural}`, async (req: Request) => {
     const url = new URL(req.url);
-    const parts = url.pathname.split("/");
-    // pathname: /api/<parentPlural>/<parent_slug>/<childPlural>
-    const parent_slug = parts[3];
+    const parent_slug = url.pathname.split("/")[3];
     const dataDir = resolveDataDir(schema, parent_slug);
-
-    const params = url.searchParams;
-    const where: Record<string, any> = {};
-    let sort: QueryOptions["sort"] | undefined;
-
-    const sortField = params.get("_sort");
-    const sortOrder = params.get("_order") as "asc" | "desc" | null;
-
-    for (const [key, value] of params.entries()) {
-      if (key === "_sort" || key === "_order") continue;
-      where[key] = value;
-    }
-
-    if (sortField) {
-      sort = { field: sortField, order: sortOrder ?? "asc" };
-    }
-
-    const options: QueryOptions = {};
-    if (Object.keys(where).length > 0) options.where = where;
-    if (sort) options.sort = sort;
+    const options = buildQueryOptions(url.searchParams);
 
     try {
       const results = await query(dataDir, options);
