@@ -1,6 +1,27 @@
 # OpenServer
 
-The open local server for Claude Code — describe what you need, your agent builds it.
+A Bun framework for building MCP servers. Connects to any MCP client — Claude Code,
+Cursor, custom agents — and gives them a live local backend they can extend at runtime.
+
+## What it does
+
+One call spins up an MCP server (stdio + HTTP/SSE), a REST API, WebSocket live reload,
+and a filesystem-backed database:
+
+```ts
+import { createServer, defineSchema } from "openserver";
+
+const tasks = defineSchema({ name: "task", fields: { title: "string", done: "boolean" } });
+const server = createServer({ schemas: [tasks] });
+await server.start();
+```
+
+CRUD tools, REST routes, and HTML views are auto-generated from schemas. The agent can
+also extend the server itself at runtime via meta-tools (`create_tool`, `create_view`,
+`create_schema`).
+
+**Who is this for:** developers who want an AI agent to build and operate a real local
+backend without manual scaffolding.
 
 ## Quickstart
 
@@ -10,14 +31,7 @@ cd my-app
 bun run dev
 ```
 
-Open Claude Code in the project and describe what you want to build.
-
-## What it does
-
-OpenServer is a pre-wired local server that combines an MCP server (stdio), an HTTP
-server, WebSocket for live reload, and a filesystem-backed database — all in a single
-`src/server.ts` you can read and modify. Your Claude Code agent connects via MCP and
-can scaffold new tools, routes, and schemas on the fly without leaving the editor.
+Point any MCP client at the project and start describing what you want to build.
 
 ## Meta-tools
 

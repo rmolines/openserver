@@ -1,6 +1,7 @@
 {
   "name": "openserver",
   "version": "0.1.0",
+  "description": "Bun framework for building MCP servers — auto-generates CRUD tools, REST routes, and views from schemas. Works with any MCP client.",
   "type": "module",
   "workspaces": ["packages/*"],
   "exports": {
