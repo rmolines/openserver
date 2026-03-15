@@ -41,12 +41,9 @@ function matchesWhere(fields: Record<string, any>, where: Record<string, any>): 
 }
 
 function applyOptions(results: QueryResult[], options?: QueryOptions): QueryResult[] {
-  let filtered = results;
-
-  if (options?.where) {
-    const where = options.where;
-    filtered = results.filter((doc) => matchesWhere(doc.fields, where));
-  }
+  const filtered = options?.where
+    ? results.filter((doc) => matchesWhere(doc.fields, options.where!))
+    : results;
 
   if (options?.sort) {
     const { field, order = "asc" } = options.sort;

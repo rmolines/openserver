@@ -121,26 +121,16 @@ export function registerChildCollectionRoutes(
 
 export function registerAllRoutes(): Map<string, (req: Request) => Promise<Response>> {
   const combined = new Map<string, (req: Request) => Promise<Response>>();
-  const childSchemas: ResolvedSchema[] = [];
+  const schemas = getAllSchemas();
 
-  // First pass: root schemas (no parent)
-  for (const schema of getAllSchemas()) {
-    if (schema.parent) {
-      childSchemas.push(schema);
-      continue;
-    }
-
-    const dataDir = resolveDataDir(schema);
-    const routes = registerCollectionRoutes(schema, dataDir);
-    for (const [path, handler] of routes) {
+  for (const schema of schemas.filter((s) => !s.parent)) {
+    for (const [path, handler] of registerCollectionRoutes(schema, resolveDataDir(schema))) {
       combined.set(path, handler);
     }
   }
 
-  // Second pass: child schemas using registerChildCollectionRoutes
-  for (const schema of childSchemas) {
-    const routes = registerChildCollectionRoutes(schema);
-    for (const [path, handler] of routes) {
+  for (const schema of schemas.filter((s) => s.parent)) {
+    for (const [path, handler] of registerChildCollectionRoutes(schema)) {
       combined.set(path, handler);
     }
   }

@@ -119,7 +119,6 @@ export function registerChildCollectionTools(
     },
     async ({ parent_slug, slug }) => {
       const dataDir = resolveDataDir(schema, parent_slug);
-      await fs.mkdir(dataDir, { recursive: true });
       const doc = await getDocument(dataDir, slug);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(doc, null, 2) }],
@@ -137,7 +136,6 @@ export function registerChildCollectionTools(
     },
     async ({ parent_slug, where, sort_field, sort_order }) => {
       const dataDir = resolveDataDir(schema, parent_slug);
-      await fs.mkdir(dataDir, { recursive: true });
       const options: QueryOptions = {};
       if (where) options.where = where;
       if (sort_field) options.sort = { field: sort_field, order: sort_order ?? "asc" };
@@ -158,7 +156,6 @@ export function registerChildCollectionTools(
     },
     async ({ parent_slug, slug, fields, body }) => {
       const dataDir = resolveDataDir(schema, parent_slug);
-      await fs.mkdir(dataDir, { recursive: true });
       await updateDocument(dataDir, schema, slug, fields, body);
       return {
         content: [{ type: "text" as const, text: `Updated '${slug}' in ${name} (parent: ${parent_slug})` }],

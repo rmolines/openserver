@@ -64,58 +64,42 @@ export function resolveDataDir(schema: ResolvedSchema, parentSlug?: string): str
   return `data/${parentSlug}/${collectionDir}/`;
 }
 
-function buildFieldZod(def: FieldDef): z.ZodTypeAny {
-  let base: z.ZodTypeAny;
+function applyOptionalAndDefault(base: z.ZodTypeAny, def: FieldDef): z.ZodTypeAny {
+  if (!def.required) base = base.optional();
+  if ("default" in def && def.default !== undefined) base = (base as any).default(def.default);
+  return base;
+}
 
+function buildFieldZod(def: FieldDef): z.ZodTypeAny {
   switch (def.type) {
     case "string":
-      base = z.string();
-      if (!def.required) base = base.optional();
-      if ("default" in def && def.default !== undefined) base = (base as any).default(def.default);
-      break;
+      return applyOptionalAndDefault(z.string(), def);
 
     case "number":
-      base = z.number();
-      if (!def.required) base = base.optional();
-      if ("default" in def && def.default !== undefined) base = (base as any).default(def.default);
-      break;
+      return applyOptionalAndDefault(z.number(), def);
 
     case "boolean":
-      base = z.boolean();
-      if (!def.required) base = base.optional();
-      if ("default" in def && def.default !== undefined) base = (base as any).default(def.default);
-      break;
+      return applyOptionalAndDefault(z.boolean(), def);
 
-    case "date":
-      base = z.coerce.date().transform((d) => d.toISOString().split("T")[0]);
-      if (!def.required) base = base.optional();
-      break;
+    case "date": {
+      const base = z.coerce.date().transform((d) => d.toISOString().split("T")[0]);
+      return def.required ? base : base.optional();
+    }
 
     case "enum": {
       const values = def.values as [string, ...string[]];
-      base = z.enum(values);
-      if (!def.required) base = base.optional();
-      if ("default" in def && def.default !== undefined) base = (base as any).default(def.default);
-      break;
+      return applyOptionalAndDefault(z.enum(values), def);
     }
 
     case "array":
-      base = z.array(z.string());
-      if (!def.required) base = base.optional();
-      if ("default" in def && def.default !== undefined) base = (base as any).default(def.default);
-      break;
+      return applyOptionalAndDefault(z.array(z.string()), def);
 
     case "ref":
-      // stored as slug string
-      base = z.string();
-      if (!def.required) base = base.optional();
-      break;
+      return def.required ? z.string() : z.string().optional();
 
     default:
-      base = z.string().optional();
+      return z.string().optional();
   }
-
-  return base;
 }
 
 export function defineSchema(def: SchemaDef): ResolvedSchema {

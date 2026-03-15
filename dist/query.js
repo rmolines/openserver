@@ -17073,60 +17073,36 @@ function resolveDataDir(schema, parentSlug) {
   }
   return `data/${parentSlug}/${collectionDir}/`;
 }
+function applyOptionalAndDefault(base, def) {
+  if (!def.required)
+    base = base.optional();
+  if ("default" in def && def.default !== undefined)
+    base = base.default(def.default);
+  return base;
+}
 function buildFieldZod(def) {
-  let base;
   switch (def.type) {
     case "string":
-      base = exports_external.string();
-      if (!def.required)
-        base = base.optional();
-      if ("default" in def && def.default !== undefined)
-        base = base.default(def.default);
-      break;
+      return applyOptionalAndDefault(exports_external.string(), def);
     case "number":
-      base = exports_external.number();
-      if (!def.required)
-        base = base.optional();
-      if ("default" in def && def.default !== undefined)
-        base = base.default(def.default);
-      break;
+      return applyOptionalAndDefault(exports_external.number(), def);
     case "boolean":
-      base = exports_external.boolean();
-      if (!def.required)
-        base = base.optional();
-      if ("default" in def && def.default !== undefined)
-        base = base.default(def.default);
-      break;
-    case "date":
-      base = exports_external.coerce.date().transform((d) => d.toISOString().split("T")[0]);
-      if (!def.required)
-        base = base.optional();
-      break;
+      return applyOptionalAndDefault(exports_external.boolean(), def);
+    case "date": {
+      const base = exports_external.coerce.date().transform((d) => d.toISOString().split("T")[0]);
+      return def.required ? base : base.optional();
+    }
     case "enum": {
       const values = def.values;
-      base = exports_external.enum(values);
-      if (!def.required)
-        base = base.optional();
-      if ("default" in def && def.default !== undefined)
-        base = base.default(def.default);
-      break;
+      return applyOptionalAndDefault(exports_external.enum(values), def);
     }
     case "array":
-      base = exports_external.array(exports_external.string());
-      if (!def.required)
-        base = base.optional();
-      if ("default" in def && def.default !== undefined)
-        base = base.default(def.default);
-      break;
+      return applyOptionalAndDefault(exports_external.array(exports_external.string()), def);
     case "ref":
-      base = exports_external.string();
-      if (!def.required)
-        base = base.optional();
-      break;
+      return def.required ? exports_external.string() : exports_external.string().optional();
     default:
-      base = exports_external.string().optional();
+      return exports_external.string().optional();
   }
-  return base;
 }
 function defineSchema(def) {
   const shape = {};
@@ -17179,11 +17155,7 @@ function matchesWhere(fields, where) {
   return true;
 }
 function applyOptions(results, options2) {
-  let filtered = results;
-  if (options2?.where) {
-    const where = options2.where;
-    filtered = results.filter((doc2) => matchesWhere(doc2.fields, where));
-  }
+  const filtered = options2?.where ? results.filter((doc2) => matchesWhere(doc2.fields, options2.where)) : results;
   if (options2?.sort) {
     const { field, order = "asc" } = options2.sort;
     filtered.sort((a, b) => {
