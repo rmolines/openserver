@@ -158,6 +158,13 @@ returns a silent 404. The old template used `new URL("../views", import.meta.url
 anchor to the source file regardless of CWD. Always start the server with CWD set to the project
 root, or pass an absolute path for `viewsDir`.
 
+### `WebStandardStreamableHTTPServerTransport` is stateful — rejects second `initialize` from same transport
+When `transport: "http"`, a single `WebStandardStreamableHTTPServerTransport` instance is created
+and shared for the server's lifetime. The SDK rejects a second `initialize` request from a new
+client session on the same transport. Multiple concurrent MCP clients require either separate
+transport instances or a stateless transport mode (`sessionIdGenerator: undefined`). The contract
+test works around this by sharing one client across all tests.
+
 ### `dist/` is committed to git but has no `.gitignore` — there is no `.gitignore` at all
 There is no `.gitignore` in the repo root. The `dist/` directory (seven bundled JS/d.ts files,
 ~628 KB each for the JS files, ~4 MB total) is fully tracked by git. `bun build --target bun`

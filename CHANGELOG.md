@@ -1,5 +1,12 @@
 # Changelog
 
+## 1-transport-sse — PR #14 — 2026-03-15
+**Type:** feat
+**Node:** 1-transport-sse
+**Commit:** `git show 7da17f4`
+**What:** Added `transport: "http"` option to createServer — mounts WebStandardStreamableHTTPServerTransport at /mcp endpoint. Stdio remains default.
+**Decisions:** see LEARNINGS.md#1-transport-sse
+
 ## 2-create-server — PR #5 — 2026-03-15
 **Type:** feat
 **Node:** 2-create-server

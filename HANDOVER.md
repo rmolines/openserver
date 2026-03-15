@@ -170,3 +170,28 @@ Closed the predicate: uma view HTML servida pelo OpenServer consegue listar e ex
 - `src/index.ts` — exports de `createServer`, `CreateServerOptions`, `ServerHandle`
 - `packages/create-openserver/template/src/server.ts` — migrado para usar `createServer`
 - `test/import-test.ts` (new — integration test for external import)
+
+## 2026-03-15 — HTTP Streamable Transport (1-transport-sse)
+
+**Problem:** OpenServer only supported stdio MCP transport, preventing standalone server use. Claude Code and external plugins couldn't connect without embedding the lib.
+
+**What was done:**
+- Added `transport?: "stdio" | "http"` to `CreateServerOptions` (default: stdio for backward compat)
+- Mounted `WebStandardStreamableHTTPServerTransport` at `/mcp` endpoint inside existing Bun.serve()
+- Contract test: 3 cases verifying listTools, create, list over HTTP
+
+**Key decisions:**
+- Used `WebStandardStreamableHTTPServerTransport` (Web Standard Request/Response) instead of deprecated SSEServerTransport or Node.js StreamableHTTPServerTransport — natural fit for Bun
+- Stateful mode with `sessionIdGenerator` — supports session management
+- Single transport instance per server — no per-request transport creation
+
+**Pitfalls:**
+- `WebStandardStreamableHTTPServerTransport` rejects second `initialize` from same session — clients must share one connection
+- `/mcp` route must be matched BEFORE other routes in Bun.serve fetch handler
+
+**Key files:**
+- `src/create-server.ts` — transport branching + /mcp route
+- `test/transport-http.test.ts` — contract test
+
+**Next steps:**
+- Sibling predicates: bin executável (2-bin-executavel), integração Claude Code (3-integracao-claude-code)
