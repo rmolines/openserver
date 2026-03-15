@@ -1,0 +1,7 @@
+{
+  "name": "create-openserver",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "create-openserver": "./bin/create-openserver.mjs" },
+  "files": ["bin/", "template/"]
+}

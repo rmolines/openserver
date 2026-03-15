@@ -1,0 +1,6 @@
+[openserver] registered meta-tool: src/meta-tools/views.ts
+[openserver] registered meta-tool: src/meta-tools/schema-loader.ts
+[openserver] registered meta-tool: src/meta-tools/schemas.ts
+[openserver] registered meta-tool: src/meta-tools/tools.ts
+OpenServer running — MCP (stdio) + HTTP (port 3333)
+[watcher] Watching: data, src/views
