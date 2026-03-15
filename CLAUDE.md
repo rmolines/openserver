@@ -86,6 +86,17 @@ skipping", and no CRUD tools are registered for `todo` at startup — even thoug
 correctly present in `schemaRegistry`. Convention: always name the file `<schemaName>.ts`
 where `<schemaName>` is the exact string passed to `defineSchema`.
 
+### Nested API routes must be matched before shorter patterns — order matters in `server.ts`
+`server.ts` dispatches HTTP requests by testing URL patterns in sequence. The generic
+3-segment pattern `/^\/api\/(\w+)\/(.+)$/` matches any path with two or more segments
+after `/api/`, including nested child routes like `/api/parents/slug/children/slug`. If
+this pattern is evaluated before the 4-segment child route pattern
+`/^\/api\/(\w+)\/([^/]+)\/(\w+)\/([^/]+)$/`, it captures the nested path first and
+routes it to the wrong handler — silently treating a child-item request as a
+parent-item request with a composite slug. Always register more-specific (longer-segment)
+patterns before less-specific ones. The correct order is: 4-segment child-item →
+3-segment child-collection → 2-segment parent-item → 1-segment parent-collection.
+
 ### `create_schema` silently overwrites an existing schema and registers duplicate MCP tools
 `defineSchema` calls `schemaRegistry.set(name, resolved)` unconditionally. Calling
 `create_schema` a second time with the same schema name replaces the registry entry and

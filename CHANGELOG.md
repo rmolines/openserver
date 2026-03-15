@@ -1,5 +1,11 @@
 # Changelog
 
+## child-schemas-auto — PR #2 — 2026-03-14
+**Type:** feat
+**Node:** child-schemas-auto
+**Commit:** `git show 01254a6`
+**Decisions:** see LEARNINGS.md
+
 ## OpenServer v0.2.0 — Document DB Layer — PR #1 — 2026-03-14
 **Type:** feat
 **PRD:** ~/.claude/initiatives/openserver/openserver-framework/prd.md

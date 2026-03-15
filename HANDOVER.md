@@ -58,3 +58,30 @@ OpenServer evolved from a flat CRUD toolkit into a document database framework. 
 - Add hierarchy-aware REST routes (`GET /api/missions/fl/modules`) — currently only flat routes are generated
 - Add `?expand=<ref-field>` support to REST API for resolving reference fields on read
 - Make port configurable via env var (carried forward from v0.1)
+
+## v0.2.1 — Child Schema Auto-Registration — 2026-03-14
+
+### What was done
+Child schemas with `parent` field now automatically get CRUD MCP tools and REST routes, just like root schemas. Previously they were silently skipped. The `create_schema` meta-tool now accepts an optional `parent` field, and the startup IIFE handles child schemas on boot.
+
+### Key decisions
+- Separate `registerChildCollectionTools` function (not modifying existing `registerCollectionTools`) — keeps root schema path unchanged
+- Child MCP tools require `parent_slug` as mandatory parameter — dataDir computed at runtime
+- REST API remains read-only for child schemas (same as root) — mutations via MCP only
+- Two-pass registration: root schemas first, child schemas second — ensures parent schemas exist before children register
+
+### Pitfalls discovered
+- Route matching order matters: 4-segment nested slug routes must be checked before 3-segment nested list routes, both before existing 2-segment flat routes
+- Child schema REST routes use `url.pathname.split("/")` to extract parent_slug — tightly coupled to path structure
+
+### Next steps
+- Prove framework with launchpad migration (parent predicate)
+- Add hierarchy-aware views (HTML rendering data from child collections)
+- Validate with 3-level hierarchy (mission/stage/module)
+
+### Key files changed
+- `template/src/auto-mcp.ts` — `registerChildCollectionTools`, two-pass `registerAllCollections`
+- `template/src/auto-api.ts` — `registerChildCollectionRoutes`, two-pass `registerAllRoutes`
+- `template/src/server.ts` — nested route matching
+- `template/src/meta-tools/schemas.ts` — `parent` in create_schema, startup IIFE fix
+- `test/integration.ts` — Parts 6+7 for child schema auto-registration
