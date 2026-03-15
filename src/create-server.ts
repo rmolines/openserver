@@ -1,11 +1,19 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { ServerWebSocket } from "bun";
+import type { ZodType } from "zod";
 import type { ResolvedSchema } from "./schema-engine.js";
 import { setDataDirPrefix } from "./schema-engine.js";
 import { registerAllCollections } from "./auto-mcp.js";
 import { registerAllRoutes } from "./auto-api.js";
 import { startWatcher } from "./watcher.js";
+
+export interface CustomToolDef {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, ZodType>;
+  handler: (args: any) => Promise<any>;
+}
 
 export interface CreateServerOptions {
   schemas: ResolvedSchema[];
@@ -14,6 +22,7 @@ export interface CreateServerOptions {
   name?: string;          // default: "openserver"
   version?: string;       // default: "1.0.0"
   viewsDir?: string;      // default: "src/views"
+  tools?: CustomToolDef[];
 }
 
 export interface ServerHandle {
@@ -28,6 +37,7 @@ export function createServer(options: CreateServerOptions): ServerHandle {
     name = "openserver",
     version = "1.0.0",
     viewsDir = "src/views",
+    tools = [],
   } = options;
 
   setDataDirPrefix(dataDir);
@@ -40,6 +50,11 @@ export function createServer(options: CreateServerOptions): ServerHandle {
     async start() {
       const mcpServer = new McpServer({ name, version });
       registerAllCollections(mcpServer);
+
+      for (const tool of tools) {
+        mcpServer.tool(tool.name, tool.description ?? "", tool.inputSchema, tool.handler);
+        process.stderr.write(`[createServer] registered custom tool: ${tool.name}\n`);
+      }
 
       const transport = new StdioServerTransport();
       await mcpServer.connect(transport);

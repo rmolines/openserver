@@ -13,7 +13,7 @@ export type { FieldDef, SchemaDef, ResolvedSchema } from "./schema-engine.js";
 
 // Create Server
 export { createServer } from "./create-server.js";
-export type { CreateServerOptions, ServerHandle } from "./create-server.js";
+export type { CreateServerOptions, ServerHandle, CustomToolDef } from "./create-server.js";
 
 // Auto MCP
 export {

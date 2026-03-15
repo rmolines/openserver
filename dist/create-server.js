@@ -32406,7 +32406,8 @@ function createServer(options2) {
     port = 3333,
     name = "openserver",
     version: version2 = "1.0.0",
-    viewsDir = "src/views"
+    viewsDir = "src/views",
+    tools = []
   } = options2;
   setDataDirPrefix(dataDir);
   for (const schema of schemas4) {
@@ -32417,6 +32418,11 @@ function createServer(options2) {
     async start() {
       const mcpServer = new McpServer({ name, version: version2 });
       registerAllCollections(mcpServer);
+      for (const tool of tools) {
+        mcpServer.tool(tool.name, tool.description ?? "", tool.inputSchema, tool.handler);
+        process.stderr.write(`[createServer] registered custom tool: ${tool.name}
+`);
+      }
       const transport = new StdioServerTransport;
       await mcpServer.connect(transport);
       const apiRoutes = registerAllRoutes();
