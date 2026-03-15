@@ -39,10 +39,13 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "openserver": "dist/cli.js"
+  },
   "files": ["dist/", "src/"],
   "scripts": {
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/index.ts src/schema-engine.ts src/auto-mcp.ts src/auto-api.ts src/fs-db.ts src/query.ts src/watcher.ts src/create-server.ts --outdir dist --target bun",
+    "build:js": "bun build src/index.ts src/schema-engine.ts src/auto-mcp.ts src/auto-api.ts src/fs-db.ts src/query.ts src/watcher.ts src/create-server.ts src/cli.ts --outdir dist --target bun",
     "build:types": "tsc --emitDeclarationOnly"
   },
   "dependencies": {
