@@ -8,6 +8,15 @@ import { registerAllCollections } from "./auto-mcp.js";
 import { registerAllRoutes } from "./auto-api.js";
 import { startWatcher } from "./watcher.js";
 
+/**
+ * Shared mutable route map for this server instance.
+ * Exported so runtime callers (e.g. create_schema) can mutate it after start().
+ * This module-level variable is intentionally a singleton per process — it is
+ * populated by createServer() and remains stable so the fetch handler always
+ * reads the latest routes without being restarted.
+ */
+export let sharedApiRoutes: Map<string, (req: Request) => Promise<Response>> | null = null;
+
 export interface CustomToolDef {
   name: string;
   description?: string;
@@ -59,7 +68,10 @@ export function createServer(options: CreateServerOptions): ServerHandle {
       const transport = new StdioServerTransport();
       await mcpServer.connect(transport);
 
-      const apiRoutes = registerAllRoutes();
+      // Populate the shared mutable route map so runtime additions (e.g. via
+      // create_schema) are immediately visible to the fetch handler below.
+      sharedApiRoutes = registerAllRoutes();
+      const apiRoutes = sharedApiRoutes;
       const wsClients = new Set<ServerWebSocket<unknown>>();
       const broadcast = (msg: string) => {
         for (const ws of wsClients) ws.send(msg);

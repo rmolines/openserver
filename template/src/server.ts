@@ -5,6 +5,7 @@ import type { ServerWebSocket } from "bun";
 import { startWatcher } from "./watcher";
 import { registerAllCollections } from "./auto-mcp";
 import { registerAllRoutes } from "./auto-api";
+import { sharedApiRoutes } from "./shared-routes";
 
 // MCP Server
 const server = new McpServer({
@@ -41,8 +42,10 @@ registerAllCollections(server);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-// Build API route map for all defined schemas
-const apiRoutes = registerAllRoutes();
+// Populate the shared mutable route map so meta-tools/schemas.ts can add routes
+// at runtime when create_schema is called, without a server restart.
+const initialRoutes = registerAllRoutes();
+for (const [k, v] of initialRoutes) sharedApiRoutes.set(k, v);
 
 // HTTP + WebSocket server
 Bun.serve({
@@ -57,7 +60,7 @@ Bun.serve({
     const pathname = url.pathname;
 
     // Auto-API routes (exact match first)
-    const exactHandler = apiRoutes.get(pathname);
+    const exactHandler = sharedApiRoutes.get(pathname);
     if (exactHandler) {
       return exactHandler(req);
     }
@@ -66,7 +69,7 @@ Bun.serve({
     const nestedSlugMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)\/(.+)$/);
     if (nestedSlugMatch) {
       const nestedSlugPath = `/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`;
-      const nestedSlugHandler = apiRoutes.get(nestedSlugPath);
+      const nestedSlugHandler = sharedApiRoutes.get(nestedSlugPath);
       if (nestedSlugHandler) {
         return nestedSlugHandler(req);
       }
@@ -76,7 +79,7 @@ Bun.serve({
     const nestedListMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)$/);
     if (nestedListMatch) {
       const nestedListPath = `/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`;
-      const nestedListHandler = apiRoutes.get(nestedListPath);
+      const nestedListHandler = sharedApiRoutes.get(nestedListPath);
       if (nestedListHandler) {
         return nestedListHandler(req);
       }
@@ -86,7 +89,7 @@ Bun.serve({
     const apiSlugMatch = pathname.match(/^\/api\/(\w+)\/(.+)$/);
     if (apiSlugMatch) {
       const collectionPath = `/api/${apiSlugMatch[1]}/:slug`;
-      const slugHandler = apiRoutes.get(collectionPath);
+      const slugHandler = sharedApiRoutes.get(collectionPath);
       if (slugHandler) {
         return slugHandler(req);
       }
