@@ -1,5 +1,11 @@
 # Changelog
 
+## views-collection-data — PR #3 — 2026-03-14
+**Type:** feat
+**Node:** views-collection-data
+**Commit:** `git show 42035a8`
+**Decisions:** see LEARNINGS.md
+
 ## child-schemas-auto — PR #2 — 2026-03-14
 **Type:** feat
 **Node:** child-schemas-auto

@@ -39,12 +39,13 @@ or during startup, it sees only the tools registered before the IIFE finishes; c
 that connected early will not auto-discover the reloaded tools until they explicitly
 re-list them.
 
-### `import.meta.url` depth assumes exact file location `src/meta-tools/*.ts`
-Every meta-tool resolves `projectRoot` via `new URL("../../..", import.meta.url).pathname`.
-This assumes the file lives exactly at `src/meta-tools/<name>.ts` (three levels up = project
-root). Moving or symlinking a meta-tool file shifts the resolved root without any error,
-causing all file I/O (tool writes, schema writes, view writes) to silently target the wrong
-directory.
+### `import.meta.url` depth is different for meta-tools vs `server.ts` — depths must not be swapped
+Meta-tools resolve `projectRoot` via `new URL("../..", import.meta.url).pathname` (two levels
+up from `src/meta-tools/<name>.ts`). `server.ts` resolves it via `new URL("..", import.meta.url).pathname`
+(one level up from `src/server.ts`). These depths were previously wrong (`../../..` for meta-tools)
+and have been corrected. If a meta-tool is moved outside `src/meta-tools/` or `server.ts` is
+moved outside `src/`, the resolved root silently shifts and all file I/O (tool writes, schema
+writes, view writes) targets the wrong directory with no error.
 
 ### `template/node_modules` is copied verbatim into every new project
 `create-openserver.mjs` calls `fs.cpSync(templateDir, targetDir, { recursive: true })`,
@@ -96,6 +97,22 @@ routes it to the wrong handler — silently treating a child-item request as a
 parent-item request with a composite slug. Always register more-specific (longer-segment)
 patterns before less-specific ones. The correct order is: 4-segment child-item →
 3-segment child-collection → 2-segment parent-item → 1-segment parent-collection.
+
+### `schema-loader.ts` must load before `schemas.ts` — alphabetical glob order is load-bearing
+`server.ts` globs `src/meta-tools/*.ts` and imports files in alphabetical order. `schema-loader.ts`
+(s-c-h-e-m-a-hyphen) sorts before `schemas.ts` (s-c-h-e-m-a-s), so at startup the loader runs
+first and populates the registry before `schemas.ts` tries to read it. This ordering is incidental,
+not enforced. Renaming `schema-loader.ts` to any name that sorts after `schemas.ts` (e.g.
+`zschema-loader.ts`) breaks startup silently: `schemas.ts` IIFE finds no schemas in the registry
+and registers no tools, yet no error is thrown.
+
+### `schemas.ts` IIFE re-registers tools already registered by `schema-loader.ts` — noisy but not fatal
+At startup, `schema-loader.ts` runs `registerAllCollections`, which registers CRUD tools for every
+schema. Then `schemas.ts`'s startup IIFE iterates schema files and calls `registerCollectionTools`
+for each one again. The MCP SDK logs "Tool X is already registered" for every duplicate. These
+warnings are noisy and can obscure real errors in startup logs, but they do not crash the server or
+break tool behavior. The fix is to guard registration with a check (e.g. `getSchema(name)` already
+registered) or skip the IIFE re-registration entirely when `schema-loader.ts` has already run.
 
 ### `create_schema` silently overwrites an existing schema and registers duplicate MCP tools
 `defineSchema` calls `schemaRegistry.set(name, resolved)` unconditionally. Calling

@@ -85,3 +85,30 @@ Child schemas with `parent` field now automatically get CRUD MCP tools and REST 
 - `template/src/server.ts` — nested route matching
 - `template/src/meta-tools/schemas.ts` — `parent` in create_schema, startup IIFE fix
 - `test/integration.ts` — Parts 6+7 for child schema auto-registration
+
+## v0.2.2 — Views + Collection Data — 2026-03-14
+
+### What was done
+Closed the predicate: uma view HTML servida pelo OpenServer consegue listar e exibir dados de uma collection hierárquica usando apenas a REST API auto-gerada — sem código custom de rotas ou CRUD. Created `project` and `task` schemas (with `task` as a child of `project`), seeded sample data, and built `dashboard.html` that fetches hierarchical data from the auto-generated REST API entirely client-side. Along the way, fixed an `import.meta.url` depth bug in `server.ts` and all meta-tools (paths were resolving to the wrong project root), and introduced `schema-loader.ts` to decouple startup timing for schema registration from the main server boot sequence.
+
+### Key decisions
+- Dashboard fetches `/api/projects`, then for each project fetches `/api/projects/:slug/tasks` — all from auto-generated routes, zero custom code
+- `schema-loader.ts` handles schema import ordering at startup — prevents race between schema registration and route/tool wiring
+- `import.meta.url` depth fix applied uniformly: `server.ts` (1 level) and meta-tools (2 levels) use the correct `../..` or `../../..` path relative to their actual file location
+
+### Pitfalls discovered
+- `import.meta.url` depth was off-by-one in `server.ts` and all meta-tools after a directory restructure — silently resolved project root to a parent directory, causing all file I/O to target the wrong path with no error thrown
+- Schema registration at startup is order-sensitive: if `server.ts` wires routes before schemas finish loading, child routes are never registered — `schema-loader.ts` makes the dependency explicit
+
+### Next steps
+- Add write support to views (HTML forms → MCP tool call via fetch proxy endpoint)
+- Prove 3-level hierarchy (mission/stage/module) end-to-end in a view
+- Migrate launchpad to use auto-generated CRUD + REST, replacing hand-written parser and routes
+
+### Key files changed
+- `template/src/schema-loader.ts` (new) — explicit startup sequencing for schema registration
+- `template/src/server.ts` — fixed `import.meta.url` depth; wires `schema-loader` before route/tool registration
+- `template/src/meta-tools/create_tool.ts`, `create_view.ts`, `create_schema.ts`, `list_tools.ts` — fixed `import.meta.url` depth in all meta-tools
+- `template/data/projects/` (new) — seed data for `project` collection
+- `template/data/projects/*/tasks/` (new) — seed data for child `task` collection
+- `template/views/dashboard.html` (new) — client-side view fetching hierarchical data from auto-generated REST API
