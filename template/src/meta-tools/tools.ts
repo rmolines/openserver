@@ -15,7 +15,7 @@ export function register(server: McpServer) {
       handler: z.string(),
     },
     async ({ name, description, inputSchema, handler }) => {
-      const projectRoot = new URL("../../..", import.meta.url).pathname;
+      const projectRoot = new URL("../..", import.meta.url).pathname;
       const toolsDir = path.join(projectRoot, "src/tools");
       const filePath = path.join(toolsDir, `${name}.ts`);
 
@@ -46,7 +46,7 @@ export default async function(args: any) {
 
   // list_tools — lists all tools from src/tools/ plus dynamically registered ones
   server.tool("list_tools", async () => {
-    const projectRoot = new URL("../../..", import.meta.url).pathname;
+    const projectRoot = new URL("../..", import.meta.url).pathname;
     const toolsDir = path.join(projectRoot, "src/tools");
 
     const results: { name: string; description: string }[] = [];
@@ -82,7 +82,7 @@ export default async function(args: any) {
 
   // Startup: load existing tools from src/tools/
   (async () => {
-    const projectRoot = new URL("../../..", import.meta.url).pathname;
+    const projectRoot = new URL("../..", import.meta.url).pathname;
     const toolsDir = path.join(projectRoot, "src/tools");
 
     try {

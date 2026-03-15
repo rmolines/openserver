@@ -10,7 +10,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Glob } from "bun";
 import path from "path";
 
-const projectRoot = new URL("../../..", import.meta.url).pathname;
+const projectRoot = new URL("../..", import.meta.url).pathname;
 const schemasDir = path.join(projectRoot, "src/schemas");
 const glob = new Glob("*.ts");
 

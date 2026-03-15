@@ -12,7 +12,7 @@ function generateSchemaSource(name: string, fields: Record<string, FieldDef>, pa
 }
 
 export function register(server: McpServer) {
-  const projectRoot = new URL("../../..", import.meta.url).pathname;
+  const projectRoot = new URL("../..", import.meta.url).pathname;
 
   // create_schema tool
   server.tool(
