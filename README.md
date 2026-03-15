@@ -70,6 +70,60 @@ bun run server.ts
 The server exposes MCP over HTTP at `http://localhost:3000/mcp`, REST routes under
 `/api/tasks`, and a view at `/tasks`.
 
+## API reference
+
+### `createServer(options)`
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `schemas` | `ResolvedSchema[]` | required | Schemas returned by `defineSchema` |
+| `transport` | `"stdio" \| "http"` | `"stdio"` | MCP transport mode |
+| `port` | `number` | `3333` | HTTP port (http transport only) |
+| `dataDir` | `string` | `"data"` | Filesystem path for stored records |
+| `viewsDir` | `string` | `"src/views"` | Directory for HTML view files |
+| `name` | `string` | `"openserver"` | MCP server name |
+| `version` | `string` | `"1.0.0"` | MCP server version |
+| `tools` | `CustomToolDef[]` | `[]` | Additional custom tools |
+
+Returns `{ start(): Promise<void> }`.
+
+### `defineSchema({ name, fields })`
+
+| Property | Type | Description |
+|---|---|---|
+| `name` | `string` | Collection name (also used as filename convention) |
+| `fields` | `Record<string, FieldDef>` | Field definitions |
+
+Auto-generates for each schema:
+- MCP tools: `create_<name>`, `read_<name>`, `list_<name>s`, `update_<name>`
+- REST routes: `GET/POST /api/<name>s`, `GET/PUT/DELETE /api/<name>s/:slug`
+- HTML view: `/<name>s`
+
+### Field types (`FieldDef`)
+
+| Type | Extra properties | Notes |
+|---|---|---|
+| `string` | `required?`, `default?` | |
+| `number` | `required?`, `default?` | |
+| `boolean` | `required?`, `default?` | |
+| `date` | `required?` | Stored as ISO date string (`YYYY-MM-DD`) |
+| `enum` | `values: string[]`, `required?`, `default?` | |
+| `array` | `required?`, `default?` | Array of strings |
+| `ref` | `collection: string`, `required?` | Stored as slug string |
+
+Shorthand: a bare string (`"string"`, `"boolean"`, etc.) is also accepted as a field value.
+
+### `CustomToolDef`
+
+```ts
+interface CustomToolDef {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, ZodType>; // Zod shape (not a JSON object)
+  handler: (args: any) => Promise<any>;
+}
+```
+
 ## Meta-tools
 
 - **create_tool** — generates a new MCP tool with handler and input schema
