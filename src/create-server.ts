@@ -30,7 +30,6 @@ export function createServer(options: CreateServerOptions): ServerHandle {
     viewsDir = "src/views",
   } = options;
 
-  // Set the global data dir prefix so resolveDataDir uses it
   setDataDirPrefix(dataDir);
 
   for (const schema of schemas) {
@@ -39,29 +38,18 @@ export function createServer(options: CreateServerOptions): ServerHandle {
 
   return {
     async start() {
-      // 1. Create MCP server
       const mcpServer = new McpServer({ name, version });
-
-      // 2. Register CRUD tools for all schemas
       registerAllCollections(mcpServer);
 
-      // 3. Connect MCP via stdio
       const transport = new StdioServerTransport();
       await mcpServer.connect(transport);
 
-      // 4. Build HTTP route map
       const apiRoutes = registerAllRoutes();
-
-      // 5. WebSocket client tracking
       const wsClients = new Set<ServerWebSocket<unknown>>();
-
       const broadcast = (msg: string) => {
-        for (const ws of wsClients) {
-          ws.send(msg);
-        }
+        for (const ws of wsClients) ws.send(msg);
       };
 
-      // 6. Start HTTP + WebSocket server
       Bun.serve({
         port,
         fetch(req, bunServer) {
@@ -73,43 +61,27 @@ export function createServer(options: CreateServerOptions): ServerHandle {
           const url = new URL(req.url);
           const pathname = url.pathname;
 
-          // Exact match
           const exactHandler = apiRoutes.get(pathname);
-          if (exactHandler) {
-            return exactHandler(req);
-          }
+          if (exactHandler) return exactHandler(req);
 
-          // Nested slug: /api/<parentPlural>/<parent_slug>/<childPlural>/<slug>
           const nestedSlugMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)\/(.+)$/);
           if (nestedSlugMatch) {
-            const nestedSlugPath = `/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`;
-            const nestedSlugHandler = apiRoutes.get(nestedSlugPath);
-            if (nestedSlugHandler) {
-              return nestedSlugHandler(req);
-            }
+            const handler = apiRoutes.get(`/api/${nestedSlugMatch[1]}/:parent_slug/${nestedSlugMatch[3]}/:slug`);
+            if (handler) return handler(req);
           }
 
-          // Nested list: /api/<parentPlural>/<parent_slug>/<childPlural>
           const nestedListMatch = pathname.match(/^\/api\/(\w+)\/([^\/]+)\/(\w+)$/);
           if (nestedListMatch) {
-            const nestedListPath = `/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`;
-            const nestedListHandler = apiRoutes.get(nestedListPath);
-            if (nestedListHandler) {
-              return nestedListHandler(req);
-            }
+            const handler = apiRoutes.get(`/api/${nestedListMatch[1]}/:parent_slug/${nestedListMatch[3]}`);
+            if (handler) return handler(req);
           }
 
-          // Parameterized slug: /api/<collection>/<slug>
           const apiSlugMatch = pathname.match(/^\/api\/(\w+)\/(.+)$/);
           if (apiSlugMatch) {
-            const collectionPath = `/api/${apiSlugMatch[1]}/:slug`;
-            const slugHandler = apiRoutes.get(collectionPath);
-            if (slugHandler) {
-              return slugHandler(req);
-            }
+            const handler = apiRoutes.get(`/api/${apiSlugMatch[1]}/:slug`);
+            if (handler) return handler(req);
           }
 
-          // Root welcome page
           if (pathname === "/") {
             return new Response(
               `<!DOCTYPE html>
@@ -124,7 +96,6 @@ export function createServer(options: CreateServerOptions): ServerHandle {
             );
           }
 
-          // Named view: serve <viewsDir>/<name>.html
           const viewName = pathname.slice(1);
           const viewPath = `${viewsDir}/${viewName}.html`;
           const file = Bun.file(viewPath);
@@ -149,8 +120,6 @@ export function createServer(options: CreateServerOptions): ServerHandle {
       });
 
       process.stderr.write(`[openserver] running — MCP (stdio) + HTTP (port ${port})\n`);
-
-      // 7. Start file watcher for live-reload
       startWatcher([dataDir, viewsDir], broadcast);
     },
   };
