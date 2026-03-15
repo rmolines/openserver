@@ -5,6 +5,8 @@ import path from "path";
 import fs from "fs/promises";
 import { defineSchema, getSchema, type SchemaDef, type FieldDef } from "openserver/schema-engine";
 import { registerCollectionTools, registerChildCollectionTools } from "openserver/auto-mcp";
+import { addSchemaRoutes } from "openserver/auto-api";
+import { sharedApiRoutes } from "openserver";
 
 function generateSchemaSource(name: string, fields: Record<string, FieldDef>, parent?: string): string {
   const def: SchemaDef = { name, ...(parent ? { parent } : {}), fields };
@@ -53,6 +55,15 @@ export function register(server: McpServer) {
         await fs.mkdir(dataDir, { recursive: true });
         process.stderr.write(`[openserver] created data dir: ${dataDir}\n`);
         toolNames = registerCollectionTools(server, schema, dataDir);
+      }
+
+      // Also register HTTP routes into the shared mutable route map so the
+      // new collection is reachable via REST without a server restart.
+      if (sharedApiRoutes) {
+        addSchemaRoutes(sharedApiRoutes, schema);
+        process.stderr.write(`[openserver] registered HTTP routes for schema: ${name}\n`);
+      } else {
+        process.stderr.write(`[openserver] sharedApiRoutes not yet initialised — HTTP routes for ${name} will be missing until restart\n`);
       }
 
       return {

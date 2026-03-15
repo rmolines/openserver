@@ -1,5 +1,7 @@
 import { type ResolvedSchema, getAllSchemas, resolveDataDir } from "./schema-engine.js";
 import { query, getDocument, type QueryOptions } from "./query.js";
+import { createDocument, updateDocument } from "./fs-db.js";
+import fs from "fs/promises";
 
 function buildQueryOptions(params: URLSearchParams): QueryOptions {
   const where: Record<string, any> = {};
@@ -24,11 +26,35 @@ export function registerCollectionRoutes(
   const name = schema.name;
   const routes = new Map<string, (req: Request) => Promise<Response>>();
 
-  // GET /api/<collection> — list with optional filters
+  // GET /api/<collection> — list; POST — create
   routes.set(`/api/${name}s`, async (req: Request) => {
+    if (req.method === "POST") {
+      try {
+        const body = await req.json() as { slug: string; fields: Record<string, any>; body?: string };
+        if (!body.slug) {
+          return new Response(JSON.stringify({ error: "slug is required" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        await fs.mkdir(dataDir, { recursive: true });
+        await createDocument(dataDir, schema, body.slug, body.fields ?? {}, body.body);
+        const doc = await getDocument(dataDir, body.slug);
+        return new Response(JSON.stringify(doc), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        process.stderr.write(`[auto-api] POST /api/${name}s error: ${err}\n`);
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const url = new URL(req.url);
     const options = buildQueryOptions(url.searchParams);
-
     try {
       const results = await query(dataDir, options);
       return new Response(JSON.stringify({ data: results, count: results.length }), {
@@ -43,12 +69,29 @@ export function registerCollectionRoutes(
     }
   });
 
-  // GET /api/<collection>/:slug — single document
+  // GET /api/<collection>/:slug — single document; PUT — update
   routes.set(`/api/${name}s/:slug`, async (req: Request) => {
     const url = new URL(req.url);
     // Extract slug from the URL path — e.g. /api/tasks/my-task => "my-task"
     const prefix = `/api/${name}s/`;
     const slug = url.pathname.slice(prefix.length);
+
+    if (req.method === "PUT") {
+      try {
+        const body = await req.json() as { fields: Record<string, any>; body?: string };
+        await updateDocument(dataDir, schema, slug, body.fields ?? {}, body.body);
+        const doc = await getDocument(dataDir, slug);
+        return new Response(JSON.stringify(doc), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        process.stderr.write(`[auto-api] PUT /api/${name}s/${slug} error: ${err}\n`);
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
 
     try {
       const doc = await getDocument(dataDir, slug);
@@ -136,4 +179,26 @@ export function registerAllRoutes(): Map<string, (req: Request) => Promise<Respo
   }
 
   return combined;
+}
+
+/**
+ * Add routes for a single schema into an existing shared route Map.
+ * Call this at runtime after create_schema registers MCP tools so the new
+ * schema gets HTTP routes without a server restart.
+ */
+export function addSchemaRoutes(
+  routeMap: Map<string, (req: Request) => Promise<Response>>,
+  schema: ResolvedSchema
+): void {
+  if (schema.parent) {
+    for (const [path, handler] of registerChildCollectionRoutes(schema)) {
+      routeMap.set(path, handler);
+    }
+    process.stderr.write(`[auto-api] added child routes for schema: ${schema.name} (parent: ${schema.parent})\n`);
+  } else {
+    for (const [path, handler] of registerCollectionRoutes(schema, resolveDataDir(schema))) {
+      routeMap.set(path, handler);
+    }
+    process.stderr.write(`[auto-api] added routes for schema: ${schema.name}\n`);
+  }
 }
